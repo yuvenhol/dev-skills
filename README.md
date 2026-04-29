@@ -1,79 +1,26 @@
 # dev-skills
 
-`dev-skills` 是面向 AI Coding 的开发技能集合仓库。仓库按 skill 组织可复用的工程规范、工作流和检查清单，让 Codex、Claude Code 等 AI 编码助手在执行开发任务时有明确、可引用、可维护的项目级约束。
+面向 AI Coding 的 skill 集合仓库。这里不放业务代码，也不做复杂安装脚手架，只沉淀可复用的开发规范、编排流程和角色约束，供 Codex、Claude Code 等 AI 编码助手按需读取。
 
-## 定位
+## Skills
 
-本仓库不承载单个项目的业务代码，而是沉淀开发过程中的通用能力：
-
-- 开发规范：目录结构、分层边界、命名、导入、异常处理、测试和工具链配置。
-- 工程工作流：初始化、重构、审查、验证和交付时可复用的执行步骤。
-- AI 执行约束：把容易产生歧义的工程口径写成明确规则，降低 AI 生成代码时的偏差。
-- 参考资料：较长的规范正文放入 skill 的 `references/`，避免主入口过长。
-
-## 目录结构
-
-```text
-dev-skills/
-├── README.md
-├── cc-orchestrator/
-│   ├── SKILL.md
-│   ├── agents/
-│   └── references/
-├── codex-orchestrator/
-│   ├── SKILL.md
-│   ├── agents/
-│   └── references/
-└── python-dev-standards/
-    ├── SKILL.md
-    └── references/
-        └── python-dev-standards.md
-```
-
-## 当前 Skills
-
-| Skill | 说明 |
-|-------|------|
-| `cc-orchestrator` | Claude Code 多 Agent 编排器，使用 TeamCreate / SendMessage / TaskCreate 协调角色团队。 |
-| `codex-orchestrator` | Codex 多 Agent 编排器，通过文件驱动的 `_workspace/` 协调专业角色产出。 |
-| `python-dev-standards` | Python 后端开发规范，覆盖 FastAPI、Pydantic v2、SQLAlchemy async、配置管理、测试、类型注解、异常处理、异步 I/O、统一错误响应、Repository/Service 分层和工具链配置。 |
-
-## Skill 编写约定
-
-每个 skill 应保持入口简洁，详细内容按需放入 `references/`：
-
-```text
-<skill-name>/
-├── SKILL.md
-├── agents/          # 可选：角色定义、平台 agent 配置等
-└── references/
-    └── <topic>.md
-```
-
-约定：
-
-- 仓库根目录直接放 skill 包；暂不再额外包一层 `skills/`。
-- `SKILL.md` 只放触发说明、使用方式、核心判断和引用索引。
-- `agents/` 只在 skill 自身需要角色定义或平台 agent 配置时保留。
-- `references/` 放完整规范、长示例、模板和扩展说明。
-- 不为 skill 额外添加 README、CHANGELOG、安装说明等辅助文件，除非确有执行价值。
-- 更新规范时，先保证 skill 主入口和 reference 的职责清晰，再同步相关引用路径。
+| Skill | 适用对象 | 用途 |
+|-------|----------|------|
+| `codex-orchestrator` | Codex | 复杂开发任务编排。通过 `_workspace/` 文件驱动，把任务拆解给 architect、developer、reviewer、tester 等角色顺序或并行完成。 |
+| `cc-orchestrator` | Claude Code | Claude Code 多 Agent 编排。使用 TeamCreate / SendMessage / TaskCreate 组织角色团队协作。 |
+| `python-dev-standards` | Python 后端项目 | Python 后端开发规范，覆盖 FastAPI、Pydantic v2、SQLAlchemy async、配置、测试、类型、异常、异步 I/O、统一错误响应和 Repository/Service 分层。 |
 
 ## 使用方式
 
-每个 skill 的入口是 `<skill-name>/SKILL.md`，扩展规范放在该 skill 的 `references/`。当任务涉及对应领域时，AI 应先读取 `SKILL.md`；需要具体规则、示例或模板时，再读取 `references/` 下的对应文件。
+- 任务触发某个领域时，先读取对应 skill 的 `SKILL.md`。
+- 需要细则、示例、模板或长说明时，再读取该 skill 的 `references/`。
+- 编排类 skill 自带 `agents/`，用于保存角色定义；普通规范类 skill 不需要强行添加 `agents/`。
+- 本仓库的 skill 包直接放在根目录，不再额外包一层 `skills/`。
 
-以当前仓库内的 Python 规范为例：
+## 维护约定
 
-```text
-python-dev-standards/SKILL.md
-python-dev-standards/references/python-dev-standards.md
-```
-
-
-## 维护原则
-
-- 优先保证 AI 阅读顺畅、无歧义，而不是追求文档形式完整。
-- 规则要能直接指导执行，避免只写抽象原则。
-- 对既有项目保持克制：先读项目现状，再决定适用哪些规范。
-- 当规范之间有冲突时，以更具体、更靠近执行场景的规则为准，并在文档中消除冲突。
+- `SKILL.md` 保持轻量，只写触发边界、执行流程和 reference 索引。
+- `references/` 承载完整规范、长示例、模板和决策细节。
+- 不给单个 skill 额外添加 README、CHANGELOG、安装说明等辅助文件，除非它们直接服务执行。
+- 修改规范时优先更新 reference；只有入口、触发方式或资源索引变化时才改 `SKILL.md`。
+- 增删 skill 时同步更新本 README 的 Skills 表。
