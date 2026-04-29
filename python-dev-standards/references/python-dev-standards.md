@@ -19,7 +19,7 @@
 project_root/
 ├── src/
 │   └── project_name/
-│       ├── __init__.py
+│       ├── __init__.py        # 包初始化，暴露 SRC_PATH、ROOT_PATH
 │       ├── core/              # 核心公共能力
 │       │   ├── config.py
 │       │   ├── http_client.py
@@ -49,6 +49,23 @@ project_root/
 └── README.md
 ```
 
+### 根包路径常量
+
+`src/project_name/__init__.py` 作为根包初始化文件，必须嵌入项目路径常量，用于统一定位 `src` 包目录和项目根目录：
+
+```python
+import os
+
+SRC_PATH = os.path.dirname(os.path.realpath(__file__))
+ROOT_PATH = os.path.dirname(os.path.dirname(SRC_PATH))
+```
+
+约定：
+- `SRC_PATH` 指向 `src/project_name/`
+- `ROOT_PATH` 指向 `project_root/`
+- 其他模块需要定位项目文件时从根包导入 `ROOT_PATH`，不要在各模块重复计算项目根目录
+- `ROOT_PATH` 是字符串路径，路径拼接使用 `os.path.join(ROOT_PATH, "...")`
+
 ### Web 页面（可选）
 
 纯后端模式可以直接提供 web 页面：在项目根新增 `static/` 目录存放 HTML / CSS / JS，由 FastAPI 静态托管；页面通过 fetch 调用 `/api/*` 完成动态交互，按需配合 htmx / Alpine.js 等轻量库。如确需服务端渲染再引入模板引擎（Jinja2、Mako 等），本规范不做限定。
@@ -71,7 +88,7 @@ project_root/
 
 ```python
 
-app.mount("/", StaticFiles(directory=ROOT_PATH / "static", html=True), name="web")
+app.mount("/", StaticFiles(directory=os.path.join(ROOT_PATH, "static"), html=True), name="web")
 ```
 
 约定：
@@ -281,8 +298,8 @@ class Settings(BaseSettings):
     LOG_LEVEL: str = "info"
     SERVICE_NAME: str = "my-service"
 raw_config = {
-    **_load_env_file(ROOT_PATH / "config/.env.base"),
-    **_load_env_file(ROOT_PATH / ".env"),
+    **_load_env_file(os.path.join(ROOT_PATH, "config/.env.base")),
+    **_load_env_file(os.path.join(ROOT_PATH, ".env")),
     **os.environ,
 }
 
