@@ -133,15 +133,26 @@ project_root/
 - 全局异常处理
 
 #### domain 层(业务领域)
-- `models.py`：领域模型（Pydantic 模型、数据类）
+- `models.py`：领域模型（Pydantic Model 或 dataclass，按数据边界选择）
 - `service.py`：业务逻辑
 - `repository.py`：数据访问层
-- `schemas.py`：API 请求/响应模型
+- `schemas.py`：API 请求/响应 Pydantic Model
+
+### 数据载体选择
+
+复杂对象应显式建模，不应长期使用 `dict[str, Any]` 在层间传递。
+
+- 外部边界数据使用 Pydantic Model：FastAPI 请求/响应、第三方 API 返回、配置文件、环境变量、消息队列 payload、LLM 结构化输出等。
+- 内部可信数据可使用 `@dataclass(slots=True)`：领域对象、Service 层 DTO、算法中间结果、临时数据结构等。
+- 需要运行时校验、类型转换、默认值处理、错误提示、JSON 序列化或 OpenAPI 集成时，使用 Pydantic Model。
+- 只需要轻量承载内部数据且数据来源可信时，使用 dataclass。
+- `dict` 仅用于临时映射、简单键值集合、外部原始 JSON 或错误 `detail` 等动态上下文。
 
 ### 核心原则
 
 - ✅ **必须**使用 `src-layout`（代码放在 `src/` 目录下）
 - ✅ **必须**按业务场景隔离子模块，避免单一巨型模块
+- ✅ **必须**为复杂对象选择明确载体：外部边界用 Pydantic Model，内部可信数据可用 dataclass
 - ✅ **允许**API 层在简单 CRUD、简单只读、依赖装配或 composition root 中通过依赖注入访问 Repository
 - ✅ **必须**将业务规则、事务边界、跨 Repository 编排或跨资源流程放入 Service 层
 - ✅ **推荐**使用依赖注入管理层级间依赖
@@ -532,7 +543,7 @@ def calculate_total(prices: list[float], tax_rate: float = 0.1) -> float:
 
 ```python
 # ✅ 正确: 使用 |
-def process(data: str | int) -> dict[str, Any]:
+def normalize_identifier(value: str | int) -> str:
     ...
 
 # ✅ 正确: 使用 | None
@@ -1005,7 +1016,7 @@ def process(d):  # d 是什么？
     pass
 
 # ✅ 正确: 使用描述性名称
-def process(data: dict[str, Any]):
+def process(user_payload: UserPayload) -> None:
     pass
 
 # ❌ 错误: 使用 Python 内置名称
@@ -1143,7 +1154,7 @@ class ErrorResponse(BaseModel):
     message: str = Field(description="可展示给用户的错误信息")
     detail: dict[str, Any] | None = Field(
         default=None,
-        description="额外调试信息（生产环境可选择不返回）",
+        description="额外调试信息 JSON object（只放动态上下文，不承载复杂业务对象）",
     )
 ```
 
