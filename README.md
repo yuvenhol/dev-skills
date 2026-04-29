@@ -16,17 +16,26 @@
 ```text
 dev-skills/
 ├── README.md
-└── skills/
-    └── python-dev-standards/
-        ├── SKILL.md
-        └── references/
-            └── python-dev-standards.md
+├── cc-orchestrator/
+│   ├── SKILL.md
+│   ├── agents/
+│   └── references/
+├── codex-orchestrator/
+│   ├── SKILL.md
+│   ├── agents/
+│   └── references/
+└── python-dev-standards/
+    ├── SKILL.md
+    └── references/
+        └── python-dev-standards.md
 ```
 
 ## 当前 Skills
 
 | Skill | 说明 |
 |-------|------|
+| `cc-orchestrator` | Claude Code 多 Agent 编排器，使用 TeamCreate / SendMessage / TaskCreate 协调角色团队。 |
+| `codex-orchestrator` | Codex 多 Agent 编排器，通过文件驱动的 `_workspace/` 协调专业角色产出。 |
 | `python-dev-standards` | Python 后端开发规范，覆盖 FastAPI、Pydantic v2、SQLAlchemy async、配置管理、测试、类型注解、异常处理、异步 I/O、统一错误响应、Repository/Service 分层和工具链配置。 |
 
 ## Skill 编写约定
@@ -34,28 +43,31 @@ dev-skills/
 每个 skill 应保持入口简洁，详细内容按需放入 `references/`：
 
 ```text
-skills/<skill-name>/
+<skill-name>/
 ├── SKILL.md
+├── agents/          # 可选：角色定义、平台 agent 配置等
 └── references/
     └── <topic>.md
 ```
 
 约定：
 
+- 仓库根目录直接放 skill 包；暂不再额外包一层 `skills/`。
 - `SKILL.md` 只放触发说明、使用方式、核心判断和引用索引。
+- `agents/` 只在 skill 自身需要角色定义或平台 agent 配置时保留。
 - `references/` 放完整规范、长示例、模板和扩展说明。
 - 不为 skill 额外添加 README、CHANGELOG、安装说明等辅助文件，除非确有执行价值。
 - 更新规范时，先保证 skill 主入口和 reference 的职责清晰，再同步相关引用路径。
 
 ## 使用方式
 
-每个 skill 的入口是 `skills/<skill-name>/SKILL.md`，扩展规范放在 `references/`。当任务涉及对应领域时，AI 应先读取 `SKILL.md`；需要具体规则、示例或模板时，再读取 `references/` 下的对应文件。
+每个 skill 的入口是 `<skill-name>/SKILL.md`，扩展规范放在该 skill 的 `references/`。当任务涉及对应领域时，AI 应先读取 `SKILL.md`；需要具体规则、示例或模板时，再读取 `references/` 下的对应文件。
 
 以当前仓库内的 Python 规范为例：
 
 ```text
-skills/python-dev-standards/SKILL.md
-skills/python-dev-standards/references/python-dev-standards.md
+python-dev-standards/SKILL.md
+python-dev-standards/references/python-dev-standards.md
 ```
 
 
