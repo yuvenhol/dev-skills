@@ -1,6 +1,6 @@
 # dev-skills
 
-`dev-skills` 是面向 AI Coding 的开发技能集合仓库。仓库按 skill 组织可复用的工程规范、工作流和检查清单，让 Codex 或其他 AI 编码助手在执行开发任务时有明确、可引用、可维护的项目级约束。
+`dev-skills` 是面向 AI Coding 的开发技能集合仓库。仓库按 skill 组织可复用的工程规范、工作流和检查清单，让 Codex、Claude Code 等 AI 编码助手在执行开发任务时有明确、可引用、可维护的项目级约束。
 
 ## 定位
 
@@ -49,13 +49,15 @@ skills/<skill-name>/
 
 ## 使用方式
 
-在 Codex 中使用时，将需要的 skill 安装或引用到 Codex 可发现的 skills 目录。以当前仓库内的 Python 规范为例：
+每个 skill 的入口是 `skills/<skill-name>/SKILL.md`，扩展规范放在 `references/`。当任务涉及对应领域时，AI 应先读取 `SKILL.md`；需要具体规则、示例或模板时，再读取 `references/` 下的对应文件。
+
+以当前仓库内的 Python 规范为例：
 
 ```text
 skills/python-dev-standards/SKILL.md
+skills/python-dev-standards/references/python-dev-standards.md
 ```
 
-当任务涉及 Python 后端开发、审查或重构时，AI 应先读取 `SKILL.md`；需要具体规则、示例或模板时，再读取 `references/python-dev-standards.md`。
 
 ## 维护原则
 
