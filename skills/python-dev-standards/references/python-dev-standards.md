@@ -844,18 +844,6 @@ def process_array(data):
     return list(data)
 ```
 
-### Ruff 配置
-
-在 `pyproject.toml` 中启用导入检查：
-
-```toml
-[tool.ruff.lint]
-select = [
-    "I",       # isort - 导入排序
-    "TID252",  # 禁止相对导入
-    "PLC0415", # import-outside-top-level
-]
-```
 
 ## 10. 命名规范
 
