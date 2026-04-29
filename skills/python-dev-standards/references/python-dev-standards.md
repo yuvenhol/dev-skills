@@ -169,7 +169,74 @@ async def transfer_balance(request: TransferBalanceRequest) -> None:
         ...
 ```
 
-## 2. 配置管理
+## 2. 工具链配置模板
+
+### pyproject.toml
+
+以下模板面向新项目，只包含通用工程元信息、测试、Pyright 和 Ruff 配置；业务依赖按项目实际需要补充。既有项目应以当前 Python 版本和工具链约束为准，不因套用模板自动升级。
+
+```toml
+[project]
+name = "project-name"
+version = "0.1.0"
+description = "Add your description here"
+readme = "README.md"
+requires-python = "~=3.14.0"
+dependencies = []
+
+[dependency-groups]
+dev = [
+    "pyright>=1.1.0",
+    "pytest>=9.0.0",
+    "pytest-asyncio>=1.3.0",
+    "ruff>=0.14.0",
+]
+
+[tool.pytest.ini_options]
+testpaths = "tests"
+python_files = "tests.py test_*.py *_tests.py"
+log_cli = true
+log_cli_level = "DEBUG"
+log_cli_format = "%(asctime)s %(levelname)s %(filename)s [line:%(lineno)d] - %(message)s"
+log_cli_date_format = "%H:%M:%S"
+
+[build-system]
+build-backend = "hatchling.build"
+requires = ["hatchling"]
+
+[tool.pyright]
+typeCheckingMode = "standard"
+pythonVersion = "3.14"
+include = ["src", "tests"]
+exclude = [".git", ".venv", "__pycache__", "build", "dist"]
+venvPath = "."
+venv = ".venv"
+
+[tool.ruff]
+line-length = 100
+include = ["src/**/*.py", "tests/**/*.py"]
+exclude = [".git", ".venv", "__pycache__", "build", "dist"]
+preview = true
+
+[tool.ruff.lint]
+select = [
+    "E",       # pycodestyle errors
+    "W",       # pycodestyle warnings
+    "F",       # pyflakes
+    "I",       # isort
+    "B",       # flake8-bugbear
+    "C4",      # flake8-comprehensions
+    "UP",      # pyupgrade
+    "TID252",  # Disallow relative imports
+    "PLC0415", # import-outside-top-level
+]
+ignore = [
+    "B008", # do not perform function calls in argument defaults
+    "W191", # indentation contains tabs
+]
+```
+
+## 3. 配置管理
 
 ### 配置文件结构
 
@@ -271,7 +338,7 @@ SECRET_KEY=dev-secret-key-change-in-production
 - ❌ **禁止**将生产环境密钥提交到版本控制
 - ✅ **推荐**使用 `Field` 添加描述和验证规则
 
-## 3. 测试规范
+## 4. 测试规范
 
 ### 核心原则
 
@@ -336,7 +403,7 @@ uv run pytest tests/unit/test_user_service.py
 uv run pytest tests/unit/
 ```
 
-## 4. FastAPI 开发
+## 5. FastAPI 开发
 
 ### 核心原则
 
@@ -420,7 +487,7 @@ async def create_user(
     ...
 ```
 
-## 5. 类型注解
+## 6. 类型注解
 
 ### Python 版本口径
 
@@ -481,7 +548,71 @@ class UserService:
         self._repository = repository
 ```
 
-## 6. 异常处理
+## 7. 控制流与代码复杂度
+
+### 核心原则
+
+1. 复杂条件优先拆成有语义的中间变量或私有函数
+2. 对同一个状态、命令、事件或领域对象做分支处理时，优先使用 `match/case` 或映射表
+3. 保留 `if` 用于范围判断、多个条件组合、需要短路求值或条件之间并非同一维度的场景
+4. 禁止在 src 路径使用 assert 做条件判断（仅用于测试代码）
+
+### 禁止在 src 路径使用 assert 做条件判断
+
+```python
+# ❌ 错误: 在 src 路径使用 assert（python -O 会跳过）
+def process_user_input(data):
+    assert data is not None  # 禁止！生产环境会跳过
+    return data.upper()
+
+# ✅ 正确: 在业务代码中使用显式检查
+def process_user_input(data):
+    if data is None:
+        raise ValueError("Data cannot be None")
+    return data.upper()
+
+# ✅ 正确: 在测试代码中使用 assert
+# tests/test_service.py
+def test_process_user_input():
+    result = process_user_input("hello")
+    assert result == "HELLO"  # 测试中可以使用
+```
+
+### 多分支判断优先使用 match/case 或映射表
+
+`match/case` 适合对同一对象做结构化分支（字段绑定、类型守卫、多值合并）；映射表适合“枚举/字符串 → 处理函数”这种纯分发场景。
+
+常用模式（每种示意一行即可）：
+
+- 字面量 / 枚举：`case "paid":`、`case OrderStatus.PAID:`
+- 多值合并：`case EventType.MESSAGE | EventType.ALERT:`
+- 字段绑定：`case SseEvent(event=EventType.FAQ, data=data):`
+- 守卫条件：`case ... if isinstance(data, ChatObjectChunk):`
+- 默认分支：`case _:`
+
+```python
+# ✅ match/case：字段绑定 + 类型守卫 + 多值合并
+match event:
+    case SseEvent(event=EventType.INTERRUPT):
+        mark_interrupted()
+    case SseEvent(event=EventType.FAQ, data=data) if isinstance(data, ChatObjectChunk):
+        handle_faq(data)
+    case SseEvent(event=EventType.MESSAGE_ALL | EventType.ALERT, data=data):
+        handle_message(data)
+    case _:
+        handle_unknown(event)
+
+# ✅ 映射表：纯分发，避免长 if/elif
+HANDLERS = {
+    OrderStatus.PAID: handle_paid,
+    OrderStatus.REFUNDED: handle_refunded,
+}
+HANDLERS.get(order.status, handle_default)(order)
+```
+
+约束：分支按顺序匹配，具体模式靠前；只在处理逻辑一致时用 `|` 合并；`if` 守卫只补充当前模式的额外条件，不要塞复杂业务；分支体超过几行就提取私有函数；不要用裸变量名匹配常量（`case PAID:` 会变成捕获，要用 `OrderStatus.PAID`）；必须显式处理未知分支。
+
+## 8. 异常处理
 
 ### 核心原则
 
@@ -489,7 +620,6 @@ class UserService:
 2. 自定义异常继承自现有异常，类名以 `Error` 结尾
 3. 禁止裸露捕获（`except:`），禁止吞掉宽泛异常
 4. 最小化 try 块
-5. 禁止在 src 路径使用 assert 做条件判断（仅用于测试代码）
 
 ### 捕获特定异常
 
@@ -567,27 +697,6 @@ except ConnectionError as e:
     raise DatabaseConnectionError("Failed to connect") from e
 ```
 
-### 禁止在 src 路径使用 assert 做条件判断
-
-```python
-# ❌ 错误: 在 src 路径使用 assert（python -O 会跳过）
-def process_user_input(data):
-    assert data is not None  # 禁止！生产环境会跳过
-    return data.upper()
-
-# ✅ 正确: 在业务代码中使用显式检查
-def process_user_input(data):
-    if data is None:
-        raise ValueError("Data cannot be None")
-    return data.upper()
-
-# ✅ 正确: 在测试代码中使用 assert
-# tests/test_service.py
-def test_process_user_input():
-    result = process_user_input("hello")
-    assert result == "HELLO"  # 测试中可以使用
-```
-
 ### 最小化 try 块
 
 ```python
@@ -640,7 +749,7 @@ with database_transaction() as conn:
     conn.execute("INSERT INTO users ...")
 ```
 
-## 7. 导入规范
+## 9. 导入规范
 
 ### 核心原则
 
@@ -748,7 +857,7 @@ select = [
 ]
 ```
 
-## 8. 命名规范
+## 10. 命名规范
 
 ### 命名风格总览
 
@@ -903,7 +1012,7 @@ items = [1, 2, 3]
 data = {}
 ```
 
-## 9. 异步 I/O 与并发
+## 11. 异步 I/O 与并发
 
 ### 核心原则
 
@@ -1009,7 +1118,7 @@ async def process(user_id: int) -> None:
 
 > ❗ 不要在 `async def` 路由里调用同步阻塞库（如 `requests`、`pymysql`、`time.sleep`）。
 
-## 10. 统一错误响应
+## 12. 统一错误响应
 
 ### 核心原则
 
@@ -1128,7 +1237,7 @@ raise HTTPException(status_code=404, detail="user not found")
 - 业务前缀分组：`AUTH_*`、`USER_*`、`ORDER_*`、`PAYMENT_*`
 - 错误码与 HTTP 状态码解耦：错误码描述业务语义，HTTP 状态码描述协议层语义
 
-## 11. 数据库与 Repository
+## 13. 数据库与 Repository
 
 ### 核心原则
 
@@ -1259,71 +1368,4 @@ class UserService:
             await users.save(receiver)
             await orders.create_transfer_record(from_user_id, to_user_id, amount)
         # 退出 with 时自动 commit；异常自动 rollback
-```
-
-## 12. 工具链配置模板
-
-### pyproject.toml
-
-以下模板面向新项目，只包含通用工程元信息、测试、Pyright 和 Ruff 配置；业务依赖按项目实际需要补充。既有项目应以当前 Python 版本和工具链约束为准，不因套用模板自动升级。
-
-```toml
-[project]
-name = "project-name"
-version = "0.1.0"
-description = "Add your description here"
-readme = "README.md"
-requires-python = "~=3.14.0"
-dependencies = []
-
-[dependency-groups]
-dev = [
-    "pyright>=1.1.0",
-    "pytest>=9.0.0",
-    "pytest-asyncio>=1.3.0",
-    "ruff>=0.14.0",
-]
-
-[tool.pytest.ini_options]
-testpaths = "tests"
-python_files = "tests.py test_*.py *_tests.py"
-log_cli = true
-log_cli_level = "DEBUG"
-log_cli_format = "%(asctime)s %(levelname)s %(filename)s [line:%(lineno)d] - %(message)s"
-log_cli_date_format = "%H:%M:%S"
-
-[build-system]
-build-backend = "hatchling.build"
-requires = ["hatchling"]
-
-[tool.pyright]
-typeCheckingMode = "standard"
-pythonVersion = "3.14"
-include = ["src", "tests"]
-exclude = [".git", ".venv", "__pycache__", "build", "dist"]
-venvPath = "."
-venv = ".venv"
-
-[tool.ruff]
-line-length = 100
-include = ["src/**/*.py", "tests/**/*.py"]
-exclude = [".git", ".venv", "__pycache__", "build", "dist"]
-preview = true
-
-[tool.ruff.lint]
-select = [
-    "E",       # pycodestyle errors
-    "W",       # pycodestyle warnings
-    "F",       # pyflakes
-    "I",       # isort
-    "B",       # flake8-bugbear
-    "C4",      # flake8-comprehensions
-    "UP",      # pyupgrade
-    "TID252",  # Disallow relative imports
-    "PLC0415", # import-outside-top-level
-]
-ignore = [
-    "B008", # do not perform function calls in argument defaults
-    "W191", # indentation contains tabs
-]
 ```
