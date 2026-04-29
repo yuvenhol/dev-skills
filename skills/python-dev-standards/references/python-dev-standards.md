@@ -1232,7 +1232,7 @@ raise HTTPException(status_code=404, detail="user not found")
 - 业务代码只能通过 Repository 访问数据库，禁止在 Service / 路由中直接写 SQL 或调用 ORM session
 - 简单 CRUD / 简单只读路由可以通过依赖注入调用 Repository；涉及业务规则、跨 Repository 编排或事务边界时必须进入 Service
 - **事务边界由 Service 层管理**，Repository 只负责单一数据操作，不开启事务
-- 使用异步驱动（`asyncpg` + SQLAlchemy 2.0 async，或 `tortoise-orm`）
+- 使用异步驱动（`asyncpg` + SQLAlchemy 2.0 async）
 - 所有 schema 变更必须通过 Alembic 迁移，禁止 `create_all` 在生产环境运行
 - Repository 返回领域模型或 ORM 实体，**不返回原始 Row / dict**
 
@@ -1242,7 +1242,7 @@ raise HTTPException(status_code=404, detail="user not found")
 |----|------|--------|
 | Repository | 单表 CRUD、查询封装、ORM ↔ 领域模型转换 | 开启/提交事务、调用其他 Repository |
 | Service | 业务逻辑编排、跨 Repository 协调、事务边界 | 直接写 SQL、构造 Query 对象 |
-| 路由 | 参数校验、调用 Service 或简单 Repository、组装响应 | 承载复杂业务逻辑、直接管理事务 |
+| Router | 参数校验、调用 Service 或简单 Repository、组装响应 | 承载复杂业务逻辑、直接管理事务 |
 
 ### API 层直接调用 Repository 的边界
 
