@@ -1,6 +1,8 @@
 ---
 name: python-dev-standards
 description: Python 后端开发规范。用于编写、审查、重构或初始化 Python 后端项目，尤其是 FastAPI、Pydantic v2、SQLAlchemy async、异步 I/O、配置管理、测试、统一错误响应、Repository/Service 分层和工具链配置。
+metadata:
+  version: 1.0.0
 ---
 
 # Python 开发规范
