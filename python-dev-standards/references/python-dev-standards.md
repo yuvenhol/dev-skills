@@ -214,7 +214,7 @@ dependencies = []
 
 [dependency-groups]
 dev = [
-    "ty>=0.14.0",
+    "ty>=0.0.34",
     "pytest>=9.0.0",
     "pytest-asyncio>=1.3.0",
     "ruff>=0.14.0",
