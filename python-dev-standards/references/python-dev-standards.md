@@ -264,28 +264,43 @@ ignore = [
 ]
 ```
 
-### 提交前代码质量检查
+### Makefile
 
-提交代码前**必须**依次执行 lint、format、typecheck，全部通过后方可提交。
+统一命令入口，避免团队成员各自记忆不同参数。
 
-| 检查项 | 命令 |
-|--------|------|
-| Lint（代码规范） | `uv run ruff check .` |
-| Format（代码格式化） | `uv run ruff format --check .` |
-| Typecheck（类型检查） | `uv run ty check` |
+```makefile
+.PHONY: format lint typecheck test check
 
-本地开发时可直接运行：
+format:
+	uv run ruff format src tests
 
-```bash
-uv run ruff check . && uv run ruff format --check . && uv run ty check
+lint:
+	uv run ruff check src tests
+
+typecheck:
+	uv run ty check
+
+test:
+	uv run pytest tests/
+
+check: format lint typecheck test
 ```
 
-核心原则：
-- ✅ **必须**提交前通过全部三项检查
-- ✅ **必须**使用 `ruff format .` 自动修复格式问题
-- ✅ **必须**先解决 typecheck 报错再提交，不得通过 `type: ignore` 绕过未审阅的错误
-- ✅ **允许**使用 `--fix` 自动修复 lint 问题：`uv run ruff check . --fix`
-- ❌ **禁止**提交包含 lint 或 typecheck 失败的代码
+### 提交前检查
+
+提交代码前**必须**运行以下检查，确认全部通过后再提交：
+
+```bash
+make check
+```
+
+执行顺序：
+1. `make format` — 自动格式化代码
+2. `make lint` — 静态分析与风格检查
+3. `make typecheck` — 类型检查
+4. `make test` — 运行测试
+
+提交前未通过的检查禁止合入；CI 应复用同一套命令配置。
 
 ## 3. 配置管理
 
