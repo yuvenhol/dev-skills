@@ -264,6 +264,29 @@ ignore = [
 ]
 ```
 
+### 提交前代码质量检查
+
+提交代码前**必须**依次执行 lint、format、typecheck，全部通过后方可提交。
+
+| 检查项 | 命令 |
+|--------|------|
+| Lint（代码规范） | `uv run ruff check .` |
+| Format（代码格式化） | `uv run ruff format --check .` |
+| Typecheck（类型检查） | `uv run ty check` |
+
+本地开发时可直接运行：
+
+```bash
+uv run ruff check . && uv run ruff format --check . && uv run ty check
+```
+
+核心原则：
+- ✅ **必须**提交前通过全部三项检查
+- ✅ **必须**使用 `ruff format .` 自动修复格式问题
+- ✅ **必须**先解决 typecheck 报错再提交，不得通过 `type: ignore` 绕过未审阅的错误
+- ✅ **允许**使用 `--fix` 自动修复 lint 问题：`uv run ruff check . --fix`
+- ❌ **禁止**提交包含 lint 或 typecheck 失败的代码
+
 ## 3. 配置管理
 
 ### 配置文件结构
