@@ -201,7 +201,7 @@ async def transfer_balance(request: TransferBalanceRequest) -> None:
 
 ### pyproject.toml
 
-以下模板面向新项目，只包含通用工程元信息、测试、Pyright 和 Ruff 配置；业务依赖按项目实际需要补充。既有项目应以当前 Python 版本和工具链约束为准，不因套用模板自动升级。
+以下模板面向新项目，只包含通用工程元信息、测试、ty 和 Ruff 配置；业务依赖按项目实际需要补充。既有项目应以当前 Python 版本和工具链约束为准，不因套用模板自动升级。
 
 ```toml
 [project]
@@ -214,7 +214,7 @@ dependencies = []
 
 [dependency-groups]
 dev = [
-    "pyright>=1.1.0",
+    "ty>=0.14.0",
     "pytest>=9.0.0",
     "pytest-asyncio>=1.3.0",
     "ruff>=0.14.0",
@@ -232,13 +232,13 @@ log_cli_date_format = "%H:%M:%S"
 build-backend = "hatchling.build"
 requires = ["hatchling"]
 
-[tool.pyright]
-typeCheckingMode = "standard"
-pythonVersion = "3.14"
+[tool.ty.src]
 include = ["src", "tests"]
 exclude = [".git", ".venv", "__pycache__", "build", "dist"]
-venvPath = "."
-venv = ".venv"
+
+[tool.ty.environment]
+python = "./.venv"
+python-version = "3.14"
 
 [tool.ruff]
 line-length = 100
@@ -519,7 +519,7 @@ async def create_user(
 
 ### Python 版本口径
 
-新项目默认使用 Python 3.14；既有项目以当前 `pyproject.toml`、Pyright 配置和 CI 运行版本为准。除非用户明确要求升级，否则不要仅因本规范修改项目的 Python 版本。
+新项目默认使用 Python 3.14；既有项目以当前 `pyproject.toml`、ty 配置和 CI 运行版本为准。除非用户明确要求升级，否则不要仅因本规范修改项目的 Python 版本。
 
 ### 核心原则
 
