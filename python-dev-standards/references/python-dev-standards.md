@@ -171,9 +171,9 @@ class UserService:
 
 
 router = APIRouter()
-async def get_user_service() -> UserService:
-    # 依赖注入
-    return UserService(repository=UserRepository())
+async def get_user_service(session: AsyncSessionDep) -> UserService:
+    # 依赖注入：session 由请求级依赖提供，详见「13. 数据库与 Repository」
+    return UserService(repository=UserRepository(session))
 @router.get("/user/{user_id}", response_model=UserResponse)
 async def get_user(
     user_id: int,
@@ -199,6 +199,15 @@ async def transfer_balance(request: TransferBalanceRequest) -> None:
 
 ## 2. 工具链配置模板
 
+### 依赖与环境管理（uv）
+
+统一使用 [uv](https://docs.astral.sh/uv/) 管理虚拟环境、依赖和运行入口；不混用 pip / poetry / conda。
+
+- 依赖声明在 `pyproject.toml`：运行期依赖进 `[project].dependencies`，开发工具进 `[dependency-groups].dev`
+- `uv.lock` **必须提交**，保证团队和 CI 安装结果一致；不手改 lock 文件
+- 常用命令：`uv sync`（按 lock 还原环境）、`uv add <pkg>` / `uv add --dev <pkg>`（增删依赖并更新 lock）、`uv run <cmd>`（在项目环境内执行，无需手动 activate）
+- 所有工具链命令（lint / typecheck / test）统一走 `uv run`，与下方 Makefile、CI 保持一致
+
 ### pyproject.toml
 
 以下模板面向新项目，只包含通用工程元信息、测试、ty 和 Ruff 配置；业务依赖按项目实际需要补充。既有项目应以当前 Python 版本和工具链约束为准，不因套用模板自动升级。
@@ -222,6 +231,7 @@ dev = [
 
 [tool.pytest.ini_options]
 testpaths = "tests"
+asyncio_mode = "auto"
 python_files = "tests.py test_*.py *_tests.py"
 log_cli = true
 log_cli_level = "DEBUG"
@@ -355,6 +365,8 @@ raw_config = {
 SETTINGS = Settings(**raw_config)
 ```
 
+> 这里手动合并多个 env 源而不用 `pydantic-settings` 内置的 `env_file`，是为了精确控制「`.env.base` < `.env` < 系统环境变量」的覆盖顺序（内置 `env_file` 对多文件 + `os.environ` 的优先级表达不够直观）。若项目只有单一 env 来源，可直接用 `SettingsConfigDict(env_file=...)` 简化。
+
 ### 使用方式
 
 ```python
@@ -459,6 +471,8 @@ async def test_get_user_success(
     assert result.name == "Alice"
 ```
 
+> 模板已设 `asyncio_mode = "auto"`，async 测试函数无需逐个加 `@pytest.mark.asyncio`；上例保留标记仅为显式说明。
+
 ### 执行测试
 
 ```bash
@@ -553,6 +567,40 @@ async def create_user(
     ...
 ```
 
+### 列表接口与分页
+
+列表 / 查询接口必须分页，禁止无上限全量返回。统一用 limit/offset 分页参数，并返回带总数的分页响应结构，便于前端渲染分页器。
+
+```python
+class PageParams(BaseModel):
+    limit: Annotated[int, Field(default=20, ge=1, le=100)]
+    offset: Annotated[int, Field(default=0, ge=0)]
+class Page[T](BaseModel):
+    """统一分页响应。"""
+
+    items: list[T]
+    total: int
+    limit: int
+    offset: int
+@router.get("/user/list")
+async def list_users(
+    page: Annotated[PageParams, Query()],
+    service: UserServiceDep,
+) -> Page[UserResponse]:
+    users, total = await service.list_users(limit=page.limit, offset=page.offset)
+    return Page(
+        items=[UserResponse.model_validate(u) for u in users],
+        total=total,
+        limit=page.limit,
+        offset=page.offset,
+    )
+```
+
+约定：
+- `limit` 必须有上限（如 `le=100`），防止单次拉全表
+- Repository / Service 同时返回当页数据和 `total`，不在路由层二次查询
+- 数据量大或要求稳定翻页时改用 cursor 分页（按有序键游标），避免深 offset 的性能问题
+
 ## 6. 类型注解
 
 ### Python 版本口径
@@ -613,6 +661,24 @@ class UserService:
     def __init__(self, repository: UserRepository) -> None:
         self._repository = repository
 ```
+
+### 时间与时区
+
+后端时间统一用 timezone-aware 的 UTC，存储和内部传递都用 UTC，仅在展示层按需转换时区。
+
+```python
+# ❌ 错误: naive datetime，无时区信息，跨时区/序列化会出错
+created_at = datetime.now()
+expired = datetime.utcnow()  # 已废弃，且仍是 naive
+
+# ✅ 正确: 带时区的 UTC
+created_at = datetime.now(UTC)
+```
+
+约定：
+- 禁止 `datetime.now()` / `datetime.utcnow()` 等 naive 写法；一律 `datetime.now(UTC)`
+- 数据库列用 `timestamptz`（带时区），不用 naive timestamp
+- Pydantic 接收 `datetime` 字段时，对无时区输入应拒绝或显式补 UTC，不要静默当本地时间
 
 ## 7. 控制流与代码复杂度
 
@@ -960,6 +1026,8 @@ class MyClass:
         self._private_var = 0
 ```
 
+> 单下划线 `_x` 是「内部使用」的约定（不强制访问限制）；双下划线 `__x` 会触发 name mangling，仅在确实需要避免子类属性命名冲突时用，普通私有成员一律用单下划线，不要滥用 `__`。
+
 ### 常量命名
 
 ```python
@@ -974,7 +1042,7 @@ _DEFAULT_BUFFER_SIZE = 1024
 
 ### FastAPI 路由命名
 
-详见 [4. FastAPI 开发 - 路由命名规范](#路由命名规范)。
+详见 [5. FastAPI 开发 - 路由命名规范](#路由命名规范)。
 
 ### Pydantic 模型命名
 
@@ -1196,6 +1264,8 @@ class ErrorResponse(BaseModel):
     )
 ```
 
+> `detail` 用 `dict[str, Any]` 是第 1 章「数据载体选择」明确允许的例外：错误响应的附加上下文是动态键值，不构成需要建模的业务对象。
+
 ### 业务异常基类
 
 ```python
@@ -1299,7 +1369,6 @@ raise HTTPException(status_code=404, detail="user not found")
 - 简单 CRUD / 简单只读路由可以通过依赖注入调用 Repository；涉及业务规则、跨 Repository 编排或事务边界时必须进入 Service
 - **事务边界由 Service 层管理**，Repository 只负责单一数据操作，不开启事务
 - 使用异步驱动（`asyncpg` + SQLAlchemy 2.0 async）
-- 所有 schema 变更必须通过 Alembic 迁移，禁止 `create_all` 在生产环境运行
 - Repository 返回领域模型或 ORM 实体，**不返回原始 Row / dict**
 
 ### 分层职责
@@ -1373,6 +1442,31 @@ async def transaction() -> AsyncIterator[AsyncSession]:
             raise
 ```
 
+### 请求级 Session 依赖注入
+
+简单只读 / 简单 CRUD 路由通过 FastAPI 依赖注入获取请求级 session；复杂流程进入 Service，由 Service 用上面的 `transaction()` 显式管理事务边界。
+
+```python
+async def get_session() -> AsyncIterator[AsyncSession]:
+    """请求级 session：正常退出 commit，异常 rollback。"""
+    async with SessionFactory() as session:
+        try:
+            yield session
+            await session.commit()
+        except Exception:
+            await session.rollback()
+            raise
+AsyncSessionDep = Annotated[AsyncSession, Depends(get_session)]
+async def get_user_repository(session: AsyncSessionDep) -> UserRepository:
+    return UserRepository(session)
+UserRepositoryDep = Annotated[UserRepository, Depends(get_user_repository)]
+```
+
+约定：
+- `AsyncSessionDep` / `UserRepositoryDep` 供路由和 `get_*_service` 依赖装配复用，不在各处重复构造
+- `get_session` 已经在请求边界提交事务，Repository 内部仍只 `flush`，不 `commit`
+- Service 需要把多个 Repository 放进**同一事务**时，用 `transaction()` 自行管理 session，不复用请求级 session
+
 ### Repository 实现
 
 ```python
@@ -1423,3 +1517,53 @@ class UserService:
             await orders.create_transfer_record(from_user_id, to_user_id, amount)
         # 退出 with 时自动 commit；异常自动 rollback
 ```
+
+## 14. 日志与可观测性
+
+### 核心原则
+
+- 用标准 `logging`，每个模块取 `logger = logging.getLogger(__name__)`，禁止用 `print` 输出运行信息
+- 日志配置集中在 `core/logging.py`，在应用启动（lifespan）时统一初始化一次，不在业务模块各自 `basicConfig`
+- 生产环境输出结构化日志（JSON），便于采集和检索；本地可用可读格式
+- 通过日志级别控制详尽程度（`DEBUG`/`INFO`/`WARNING`/`ERROR`），级别由 `SETTINGS.LOG_LEVEL` 驱动
+- 异常用 `logger.exception(...)` 记录完整堆栈（仅在捕获处），不要把同一异常在每层重复打印
+
+### 日志初始化
+
+```python
+def setup_logging() -> None:
+    """应用启动时调用一次，由 SETTINGS.LOG_LEVEL 控制级别。"""
+    logging.basicConfig(
+        level=SETTINGS.LOG_LEVEL.upper(),
+        format="%(asctime)s %(levelname)s %(name)s [%(filename)s:%(lineno)d] - %(message)s",
+    )
+logger = logging.getLogger(__name__)
+```
+
+### 使用方式
+
+```python
+# ✅ 正确: 模块级 logger + 参数化日志，惰性格式化
+logger.info("user created: user_id=%s", user.id)
+
+# ✅ 正确: 捕获处记录堆栈
+try:
+    await charge(order)
+except PaymentError:
+    logger.exception("charge failed: order_id=%s", order.id)
+    raise
+
+# ❌ 错误: print 输出 / f-string 提前格式化 / 打印敏感字段
+print("user created", user)
+logger.info(f"login: token={token}")  # 泄露凭证，且无视级别也会格式化
+```
+
+### 禁止记录的内容
+
+- 密码、token、密钥、Authorization 头、完整身份证 / 银行卡号等敏感数据
+- 完整请求/响应体（可能含敏感字段）；需要时只记必要字段并脱敏
+- 高频路径里的大对象，避免日志量和性能失控
+
+### 可观测性（按需）
+
+需要追踪和指标时，在 `core/observability.py` 集中接入（如 OpenTelemetry）：请求链路注入 trace-id / request-id 并随日志输出，对外部调用（HTTP、DB）埋点。规模较小的项目可只保留结构化日志 + request-id，不强制引入完整 APM。
