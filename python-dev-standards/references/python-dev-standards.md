@@ -1,36 +1,36 @@
 <!-- Full reference for the python-dev-standards skill. -->
 
-# Python 开发规范
+# Python Development Standards
 
-## 规范定位
+## Standard Positioning
 
-本规范用于指导 AI 生成更规范、可维护、可测试的 Python 代码。它既可以在项目初始化时作为脚手架和架构约束使用，也可以在完成编码后作为重构检查清单，用于统一目录结构、配置管理、类型注解、异常处理、测试方式和工具链配置。
+This standard guides AI in generating more maintainable, testable Python code. It serves as scaffolding and architectural constraints during project initialization, and as a refactoring checklist after coding to unify directory structure, configuration management, type annotations, exception handling, testing practices, and toolchain configuration.
 
-核心目标：
-- 让 AI 生成的代码默认具备清晰分层、稳定边界和一致风格
-- 减少硬编码、隐式依赖、异常吞没、阻塞 I/O 等常见工程问题
-- 让项目在初始化、迭代开发、代码审查和后续重构阶段都有统一依据
+Core goals:
+- Ensure AI-generated code defaults to clear layering, stable boundaries, and consistent style
+- Reduce common engineering issues such as hardcoding, implicit dependencies, exception swallowing, and blocking I/O
+- Provide a unified basis during initialization, iterative development, code review, and subsequent refactoring
 
-## 1. 项目架构
+## 1. Project Architecture
 
-### 标准目录结构
+### Standard Directory Structure
 
 ```
 project_root/
 ├── src/
 │   └── project_name/
-│       ├── __init__.py        # 包初始化，暴露 SRC_PATH、ROOT_PATH
-│       ├── core/              # 核心公共能力
+│       ├── __init__.py        # Package init, exposes SRC_PATH, ROOT_PATH
+│       ├── core/              # Core shared capabilities
 │       │   ├── config.py
 │       │   ├── http_client.py
 │       │   ├── logging.py
 │       │   └── observability.py
-│       ├── api/               # FastAPI 应用入口
+│       ├── api/               # FastAPI application entry
 │       │   ├── __init__.py
 │       │   ├── main.py
 │       │   ├── routes/
 │       │   └── middleware/
-│       ├── domain/            # 业务领域（按场景隔离）
+│       ├── domain/            # Business domains (isolated by scenario)
 │       │   ├── user/
 │       │   │   ├── models.py
 │       │   │   ├── service.py
@@ -49,9 +49,9 @@ project_root/
 └── README.md
 ```
 
-### 根包路径常量
+### Root Package Path Constants
 
-`src/project_name/__init__.py` 作为根包初始化文件，必须嵌入项目路径常量，用于统一定位 `src` 包目录和项目根目录：
+`src/project_name/__init__.py` serves as the root package initialization file and must embed project path constants for uniformly locating the `src` package directory and project root:
 
 ```python
 import os
@@ -60,22 +60,22 @@ SRC_PATH = os.path.dirname(os.path.realpath(__file__))
 ROOT_PATH = os.path.dirname(os.path.dirname(SRC_PATH))
 ```
 
-约定：
-- `SRC_PATH` 指向 `src/project_name/`
-- `ROOT_PATH` 指向 `project_root/`
-- 其他模块需要定位项目文件时从根包导入 `ROOT_PATH`，不要在各模块重复计算项目根目录
-- `ROOT_PATH` 是字符串路径，路径拼接使用 `os.path.join(ROOT_PATH, "...")`
+Conventions:
+- `SRC_PATH` points to `src/project_name/`
+- `ROOT_PATH` points to `project_root/`
+- Other modules needing to locate project files import `ROOT_PATH` from the root package; do not recalculate the project root in each module
+- `ROOT_PATH` is a string path; use `os.path.join(ROOT_PATH, "...")` for path concatenation
 
-### Web 页面（可选）
+### Web Pages (Optional)
 
-纯后端模式可以直接提供 web 页面：在项目根新增 `static/` 目录存放 HTML / CSS / JS，由 FastAPI 静态托管；页面通过 fetch 调用 `/api/*` 完成动态交互，按需配合 htmx / Alpine.js 等轻量库。如确需服务端渲染再引入模板引擎（Jinja2、Mako 等），本规范不做限定。
+In pure backend mode, web pages can be served directly: add a `static/` directory at the project root for HTML / CSS / JS, served by FastAPI static hosting; pages call `/api/*` via fetch for dynamic interaction, optionally using lightweight libraries like htmx / Alpine.js. If server-side rendering is truly needed, introduce a template engine (Jinja2, Mako, etc.) — this standard does not prescribe one.
 
-在标准结构上的最小增量：
+Minimal increment on top of the standard structure:
 
 ```
 project_root/
-├── src/project_name/...      # 沿用上面"标准目录结构"
-├── static/                   # web 页面，与 src/ 同级
+├── src/project_name/...      # Follow the "Standard Directory Structure" above
+├── static/                   # Web pages, sibling to src/
 │   ├── index.html
 │   ├── css/
 │   └── js/
@@ -84,82 +84,81 @@ project_root/
 └── ...
 ```
 
-挂载（在所有 API 路由注册之后）：
+Mount (after all API routes are registered):
 
 ```python
-
 app.mount("/", StaticFiles(directory=os.path.join(ROOT_PATH, "static"), html=True), name="web")
 ```
 
-约定：
-- 静态资源统一放 `static/`，与 `src/` 同级；不预先划分子目录
-- 页面只通过 `/api/*` 与后端通信，不直接访问后端内部状态
-- 复杂前端交互改用前后端分离变体
+Conventions:
+- Static resources go in `static/`, sibling to `src/`; no pre-defined subdirectories
+- Pages only communicate with the backend via `/api/*`; do not directly access internal backend state
+- For complex frontend interactions, switch to the separate frontend/backend variant
 
-### 变体：前后端分离
+### Variant: Separate Frontend / Backend
 
-适用于前端为独立 SPA、独立部署的项目。仓库顶层划分两个工程，各自维护各自的规范：
+For projects where the frontend is an independent SPA with independent deployment. The repository top level is divided into two projects, each maintaining its own standards:
 
 ```
 project_root/
-├── backend/         # 后端工程，内部沿用上面的"标准目录结构"
-├── frontend/        # 前端工程，结构由前端规范决定，不在本文档范围
+├── backend/         # Backend project, internally follows the "Standard Directory Structure"
+├── frontend/        # Frontend project, structure determined by frontend standards, out of scope
 └── README.md
 ```
 
-后端约束：
-- 所有路由必须在 `/api` 前缀下；破坏性变更走新版本前缀（如 `/api/v2`）
-- 响应必须用 `*Response` schema 序列化，禁止直接返回 ORM 实体
-- CORS 仅在开发环境开放；生产通过反向代理同源部署
+Backend constraints:
+- All routes must be under the `/api` prefix; breaking changes go through a new version prefix (e.g. `/api/v2`)
+- Responses must be serialized with `*Response` schemas; returning ORM entities directly is prohibited
+- CORS is only open in development; production serves through reverse proxy with same-origin deployment
 
-### 选型建议
+### Selection Guidance
 
-默认使用**标准目录结构**。前端独立成 SPA 时用前后端分离变体。
+Default to the **standard directory structure**. Use the separate frontend/backend variant when the frontend is an independent SPA.
 
-### 分层职责
+### Layer Responsibilities
 
-#### core 层（公共能力）
-- 配置管理（`config.py`）
-- HTTP 客户端封装
-- 日志配置与可观测性
-- LLM 调用封装（如适用）
-- 通用工具函数
-- **不依赖业务逻辑**
+#### core Layer (Shared Capabilities)
+- Configuration management (`config.py`)
+- HTTP client wrappers
+- Logging configuration and observability
+- LLM call wrappers (if applicable)
+- General utility functions
+- **Must not depend on business logic**
 
-#### api 层（应用入口）
-- 应用初始化与生命周期管理
-- 路由注册
-- 中间件配置
-- 全局异常处理
+#### api Layer (Application Entry)
+- Application initialization and lifecycle management
+- Route registration
+- Middleware configuration
+- Global exception handling
 
-#### domain 层(业务领域)
-- `models.py`：领域模型（Pydantic Model 或 dataclass，按数据边界选择）
-- `service.py`：业务逻辑
-- `repository.py`：数据访问层
-- `schemas.py`：API 请求/响应 Pydantic Model
+#### domain Layer (Business Domains)
+- `models.py`: Domain models (Pydantic Model or dataclass, chosen by data boundary)
+- `service.py`: Business logic
+- `repository.py`: Data access layer
+- `schemas.py`: API request/response Pydantic Models
 
-### 数据载体选择
+### Data Carrier Selection
 
-复杂对象应显式建模，不应长期使用 `dict[str, Any]` 在层间传递。
+Complex objects should be explicitly modeled; do not pass `dict[str, Any]` between layers for long.
 
-- 外部边界数据使用 Pydantic Model：FastAPI 请求/响应、第三方 API 返回、配置文件、环境变量、消息队列 payload、LLM 结构化输出等。
-- 内部可信数据可使用 `@dataclass(slots=True)`：领域对象、Service 层 DTO、算法中间结果、临时数据结构等。
-- 需要运行时校验、类型转换、默认值处理、错误提示、JSON 序列化或 OpenAPI 集成时，使用 Pydantic Model。
-- 只需要轻量承载内部数据且数据来源可信时，使用 dataclass。
-- `dict` 仅用于临时映射、简单键值集合、外部原始 JSON 或错误 `detail` 等动态上下文。
+- External boundary data uses Pydantic Model: FastAPI request/response, third-party API returns, config files, environment variables, message queue payloads, LLM structured output, etc.
+- Internal trusted data may use `@dataclass(slots=True)`: domain objects, Service layer DTOs, algorithm intermediate results, temporary data structures, etc.
+- When runtime validation, type coercion, default handling, error messages, JSON serialization, or OpenAPI integration are needed, use Pydantic Model.
+- When only lightweight internal data carrying is needed and the data source is trusted, use dataclass.
+- `dict` is only for temporary mapping, simple key-value collections, external raw JSON, or error `detail` in dynamic contexts.
 
-### 核心原则
+### Core Principles
 
-- ✅ **必须**使用 `src-layout`（代码放在 `src/` 目录下）
-- ✅ **必须**按业务场景隔离子模块，避免单一巨型模块
-- ✅ **必须**为复杂对象选择明确载体：外部边界用 Pydantic Model，内部可信数据可用 dataclass
-- ✅ **允许**API 层在简单 CRUD、简单只读、依赖装配或 composition root 中通过依赖注入访问 Repository
-- ✅ **必须**将业务规则、事务边界、跨 Repository 编排或跨资源流程放入 Service 层
-- ✅ **推荐**使用依赖注入管理层级间依赖
+- ✅ **Must** use `src-layout` (code under `src/`)
+- ✅ **Must** isolate submodules by business scenario; avoid single giant modules
+- ✅ **Must** choose explicit carriers for complex objects: Pydantic Model for external boundaries, dataclass for internal trusted data
+- ✅ **Allowed** API layer to access Repository via dependency injection in simple CRUD, simple read-only, dependency assembly, or composition root scenarios
+- ✅ **Must** place business rules, transaction boundaries, cross-Repository orchestration, or cross-resource flows in the Service layer
+- ✅ **Recommended** use dependency injection to manage inter-layer dependencies
 
-### 示例代码
+### Example Code
 
-#### 正确的分层示例
+#### Correct Layering Example
 
 ```python
 class UserService:
@@ -172,8 +171,9 @@ class UserService:
 
 router = APIRouter()
 async def get_user_service(session: AsyncSessionDep) -> UserService:
-    # 依赖注入：session 由请求级依赖提供，详见「13. 数据库与 Repository」
+    # Dependency injection: session provided by request-level dependency; see "13. Database & Repository"
     return UserService(repository=UserRepository(session))
+
 @router.get("/user/{user_id}", response_model=UserResponse)
 async def get_user(
     user_id: int,
@@ -185,10 +185,10 @@ async def get_user(
     return UserResponse.model_validate(user)
 ```
 
-#### 不推荐示例
+#### Not Recommended Example
 
 ```python
-# ❌ 错误: 路由层承载事务和跨 Repository 编排
+# ❌ Wrong: route layer carrying transactions and cross-Repository orchestration
 @router.post("/balance/transfer")
 async def transfer_balance(request: TransferBalanceRequest) -> None:
     async with transaction() as session:
@@ -197,20 +197,20 @@ async def transfer_balance(request: TransferBalanceRequest) -> None:
         ...
 ```
 
-## 2. 工具链配置模板
+## 2. Toolchain Configuration Templates
 
-### 依赖与环境管理（uv）
+### Dependency & Environment Management (uv)
 
-统一使用 [uv](https://docs.astral.sh/uv/) 管理虚拟环境、依赖和运行入口；不混用 pip / poetry / conda。
+Unified use of [uv](https://docs.astral.sh/uv/) for virtual environment, dependency, and run entry management; do not mix pip / poetry / conda.
 
-- 依赖声明在 `pyproject.toml`：运行期依赖进 `[project].dependencies`，开发工具进 `[dependency-groups].dev`
-- `uv.lock` **必须提交**，保证团队和 CI 安装结果一致；不手改 lock 文件
-- 常用命令：`uv sync`（按 lock 还原环境）、`uv add <pkg>` / `uv add --dev <pkg>`（增删依赖并更新 lock）、`uv run <cmd>`（在项目环境内执行，无需手动 activate）
-- 所有工具链命令（lint / typecheck / test）统一走 `uv run`，与下方 Makefile、CI 保持一致
+- Dependency declarations go in `pyproject.toml`: runtime deps under `[project].dependencies`, dev tools under `[dependency-groups].dev`
+- `uv.lock` **must be committed** to ensure consistent installs across team and CI; do not edit lock files manually
+- Common commands: `uv sync` (restore environment from lock), `uv add <pkg>` / `uv add --dev <pkg>` (add/remove deps and update lock), `uv run <cmd>` (execute within project environment, no manual activate needed)
+- All toolchain commands (lint / typecheck / test) go through `uv run`, consistent with the Makefile and CI below
 
 ### pyproject.toml
 
-以下模板面向新项目，只包含通用工程元信息、测试、ty 和 Ruff 配置；业务依赖按项目实际需要补充。既有项目应以当前 Python 版本和工具链约束为准，不因套用模板自动升级。
+The template below is for new projects, containing only generic project metadata, testing, ty, and Ruff configuration; business dependencies are added as needed. Existing projects should follow their current Python version and toolchain constraints; do not auto-upgrade just to match the template.
 
 ```toml
 [project]
@@ -218,7 +218,7 @@ name = "project-name"
 version = "0.1.0"
 description = "Add your description here"
 readme = "README.md"
-requires-python = "~=3.14.0"
+requires-python = "~>=3.14.0"
 dependencies = []
 
 [dependency-groups]
@@ -276,7 +276,7 @@ ignore = [
 
 ### Makefile
 
-统一命令入口，避免团队成员各自记忆不同参数。
+Unified command entry point; avoid team members memorizing different parameters.
 
 ```makefile
 .PHONY: format lint typecheck test check
@@ -296,56 +296,56 @@ test:
 check: format lint typecheck test
 ```
 
-### 提交前检查
+### Pre-commit Checks
 
-提交代码前**必须**运行以下检查，确认全部通过后再提交：
+Before committing, **must** run the following checks and confirm all pass:
 
 ```bash
 make check
 ```
 
-执行顺序：
-1. `make format` — 自动格式化代码
-2. `make lint` — 静态分析与风格检查
-3. `make typecheck` — 类型检查
-4. `make test` — 运行测试
+Execution order:
+1. `make format` — auto-format code
+2. `make lint` — static analysis and style check
+3. `make typecheck` — type check
+4. `make test` — run tests
 
-提交前未通过的检查禁止合入；CI 应复用同一套命令配置。
+Checks that fail pre-commit must not be merged; CI should reuse the same command configuration.
 
-## 3. 配置管理
 
-### 配置文件结构
+## 3. Configuration Management
+
+### Configuration File Structure
 
 ```
 config/
-└── .env.base       # 基础默认配置（可提交，不含密钥）
+└── .env.base       # Base default config (commit-able, no secrets)
 
-.env.example        # 配置模板（必须提交）
-.env                # 本地覆盖配置（不提交）
+.env.example        # Config template (must be committed)
+.env                # Local override (do not commit)
 ```
 
-### 配置优先级（从低到高）
+### Configuration Priority (low to high)
 
-1. `Settings` 类字段默认值
-2. `config/.env.base`（基础配置）
-3. 项目根目录 `.env`（本地覆盖）
-4. 系统环境变量（最高优先级）
+1. `Settings` class field defaults
+2. `config/.env.base` (base config)
+3. Project root `.env` (local override)
+4. System environment variables (highest priority)
 
-### 环境标识
+### Environment Identifier
 
-`ENV` 只是运行环境标识（如 `dev` / `fat` / `prod`），不用于加载仓库内的环境专属配置文件。环境差异配置由运行平台通过系统环境变量注入；本地开发差异使用项目根目录 `.env` 覆盖。
+`ENV` is only a runtime environment identifier (e.g. `dev` / `fat` / `prod`), not used to load environment-specific config files from the repository. Environment differences are injected by the runtime platform via system environment variables; local development differences use the project root `.env` override.
 
-### 配置类定义
+### Configuration Class Definition
 
 ```python
-
-
 def _load_env_file(path: str | PathLike[str]) -> dict[str, str]:
     return {
         key: value
         for key, value in dotenv_values(path).items()
         if value is not None
     }
+
 class Settings(BaseSettings):
     model_config = SettingsConfigDict(
         case_sensitive=False,
@@ -356,6 +356,7 @@ class Settings(BaseSettings):
     DEBUG: bool = False
     LOG_LEVEL: str = "info"
     SERVICE_NAME: str = "my-service"
+
 raw_config = {
     **_load_env_file(os.path.join(ROOT_PATH, "config/.env.base")),
     **_load_env_file(os.path.join(ROOT_PATH, ".env")),
@@ -365,80 +366,78 @@ raw_config = {
 SETTINGS = Settings(**raw_config)
 ```
 
-> 这里手动合并多个 env 源而不用 `pydantic-settings` 内置的 `env_file`，是为了精确控制「`.env.base` < `.env` < 系统环境变量」的覆盖顺序（内置 `env_file` 对多文件 + `os.environ` 的优先级表达不够直观）。若项目只有单一 env 来源，可直接用 `SettingsConfigDict(env_file=...)` 简化。
+> Manually merging multiple env sources instead of using `pydantic-settings` built-in `env_file` is for precise control over the override order "`.env.base` < `.env` < system env vars" (built-in `env_file` priority for multiple files + `os.environ` is not intuitive enough). If the project only has a single env source, `SettingsConfigDict(env_file=...)` can be used directly for simplification.
 
-### 使用方式
+### Usage
 
 ```python
-# ✅ 正确: 导入全局配置
-
+# ✅ Correct: import global config
 def connect_database():
     return create_engine(SETTINGS.DATABASE_URL)
 
 if SETTINGS.DEBUG:
     print("Debug mode enabled")
 
-# ❌ 错误: 硬编码配置
+# ❌ Wrong: hardcoded config
 DATABASE_URL = "postgresql://localhost/mydb"
 
-# ❌ 错误: 直接读取环境变量
-debug = os.getenv("DEBUG")  # 应该使用 SETTINGS.DEBUG
+# ❌ Wrong: read environment variables directly
+debug = os.getenv("DEBUG")  # should use SETTINGS.DEBUG
 ```
 
-### 配置文件示例
+### Configuration File Examples
 
 ```bash
-# config/.env.base（基础配置）
+# config/.env.base (base config)
 DEBUG=false
 LOG_LEVEL=INFO
 HOST=0.0.0.0
 PORT=8000
 
-# .env.example（配置模板，不写真实密钥）
+# .env.example (config template, no real secrets)
 DATABASE_URL=
 REDIS_URL=
 SECRET_KEY=
 
-# .env（本地覆盖，不提交）
+# .env (local override, do not commit)
 DEBUG=true
 DATABASE_URL=postgresql://localhost/mydb_dev
 REDIS_URL=redis://localhost:6379/0
 SECRET_KEY=dev-secret-key-change-in-production
 ```
 
-### 核心原则
+### Core Principles
 
-- ✅ **必须**使用 `pydantic-settings` 管理配置
-- ✅ **必须**提供 `.env.example` 说明所有必需变量
-- ❌ **禁止**提交项目根目录 `.env`
-- ✅ **必须**通过系统环境变量注入生产环境差异配置
-- ❌ **禁止**硬编码密钥、令牌或凭证
-- ❌ **禁止**将生产环境密钥提交到版本控制
-- ✅ **推荐**使用 `Field` 添加描述和验证规则
+- ✅ **Must** use `pydantic-settings` for configuration management
+- ✅ **Must** provide `.env.example` documenting all required variables
+- ❌ **Prohibited** committing project root `.env`
+- ✅ **Must** inject production environment differences via system environment variables
+- ❌ **Prohibited** hardcoding keys, tokens, or credentials
+- ❌ **Prohibited** committing production environment secrets to version control
+- ✅ **Recommended** use `Field` to add descriptions and validation rules
 
-## 4. 测试规范
+## 4. Testing Standards
 
-### 核心原则
+### Core Principles
 
-#### 单元测试
-- 测试单个函数或方法的行为
-- 必须可重复、可隔离、快速执行
-- 避免网络 I/O、文件系统 I/O、数据库访问
-- **不得删除库表或业务数据**
-- **尽量不使用 mock**，优先使用真实实现或轻量替身
+#### Unit Tests
+- Test the behavior of a single function or method
+- Must be repeatable, isolated, and fast
+- Avoid network I/O, filesystem I/O, database access
+- **Must not drop tables or business data**
+- **Minimize mock usage**, prefer real implementations or lightweight substitutes
 
-#### 集成测试
-- 测试多个组件的协作
-- 可以访问数据库、外部 API、文件系统
-- 使用测试数据库或容器化环境
+#### Integration Tests
+- Test collaboration among multiple components
+- May access databases, external APIs, filesystem
+- Use test databases or containerized environments
 
-### 单元测试示例
+### Unit Test Example
 
 ```python
-
-# ✅ 正确: 使用轻量替身而不是 mock
+# ✅ Correct: use lightweight substitute instead of mock
 class FakeUserRepository:
-    """测试用的假 Repository。"""
+    """Fake Repository for testing."""
 
     def __init__(self) -> None:
         self._users: dict[int, User] = {}
@@ -448,12 +447,15 @@ class FakeUserRepository:
 
     async def save(self, user: User) -> None:
         self._users[user.id] = user
+
 @pytest.fixture
 def fake_repository() -> FakeUserRepository:
     return FakeUserRepository()
+
 @pytest.fixture
 def user_service(fake_repository: FakeUserRepository) -> UserService:
     return UserService(repository=fake_repository)
+
 @pytest.mark.asyncio
 async def test_get_user_success(
     user_service: UserService,
@@ -471,41 +473,42 @@ async def test_get_user_success(
     assert result.name == "Alice"
 ```
 
-> 模板已设 `asyncio_mode = "auto"`，async 测试函数无需逐个加 `@pytest.mark.asyncio`；上例保留标记仅为显式说明。
+> The template sets `asyncio_mode = "auto"`, so async test functions do not need `@pytest.mark.asyncio` individually; the example keeps the marker only for explicit illustration.
 
-### 执行测试
+### Running Tests
 
 ```bash
-# 测试特定文件
+# Test a specific file
 uv run pytest tests/unit/test_user_service.py
 
-# 运行所有单元测试
+# Run all unit tests
 uv run pytest tests/unit/
 ```
 
-## 5. FastAPI 开发
 
-### 核心原则
+## 5. FastAPI Development
 
-- 完整类型注解（新项目默认 Python 3.14；既有项目遵循项目当前 Python 版本）
-- 使用 Pydantic v2 进行验证
-- 使用 `Annotated` + `Depends` 进行依赖注入
-- 优先使用 `async def`
+### Core Principles
 
-### 路由命名规范
+- Complete type annotations (new projects default to Python 3.14; existing projects follow their current Python version)
+- Use Pydantic v2 for validation
+- Use `Annotated` + `Depends` for dependency injection
+- Prefer `async def`
 
-所有业务 API 对外必须挂载在 `/api` 前缀下。路由函数或 `APIRouter` 内部可以只写对象/动作路径，由应用入口统一添加 `/api` 前缀。
+### Route Naming Conventions
 
-**格式**：`/object/action`（对象/动作）
-**风格**：全小写，kebab-case
+All business APIs must be mounted under the `/api` prefix. Route functions or `APIRouter` internals may only write object/action paths; the application entry adds the `/api` prefix uniformly.
+
+**Format**: `/object/action` (object/action)
+**Style**: all lowercase, kebab-case
 
 ```python
-# ✅ 正确
-@router.post("/user/create")    # 对外路径: /api/user/create
-@router.get("/order/list")      # 对外路径: /api/order/list
-@router.post("/image/enhance")  # 对外路径: /api/image/enhance
+# ✅ Correct
+@router.post("/user/create")    # external path: /api/user/create
+@router.get("/order/list")      # external path: /api/order/list
+@router.post("/image/enhance")  # external path: /api/image/enhance
 
-# ❌ 错误
+# ❌ Wrong
 @router.post("/create_user")
 @router.get("/getOrders")
 ```
@@ -515,28 +518,27 @@ app = FastAPI()
 app.include_router(user.router, prefix="/api")
 ```
 
-### Pydantic v2 模型定义
+### Pydantic v2 Model Definition
 
 ```python
-
 class UserCreate(BaseModel):
-    """创建用户请求模型。"""
+    """Create user request model."""
 
     username: Annotated[str, Field(
         min_length=3,
         max_length=50,
         pattern=r"^[a-zA-Z0-9_]+$",
-        description="用户名",
+        description="Username",
         examples=["john_doe"],
     )]
     email: Annotated[EmailStr, Field(
-        description="邮箱地址",
+        description="Email address",
         examples=["alice@example.com"],
     )]
     password: Annotated[str, Field(
         min_length=8,
         max_length=128,
-        description="密码",
+        description="Password",
     )]
 
     model_config = ConfigDict(
@@ -548,17 +550,18 @@ class UserCreate(BaseModel):
     @classmethod
     def validate_password(cls, v: str) -> str:
         if not any(c.isupper() for c in v):
-            raise ValueError("密码必须包含至少一个大写字母")
+            raise ValueError("Password must contain at least one uppercase letter")
         return v
 ```
 
-### 依赖注入
+### Dependency Injection
 
 ```python
-
 async def get_current_user(token: str) -> User:
     ...
+
 CurrentUser = Annotated[User, Depends(get_current_user)]
+
 @app.post("/user/create")
 async def create_user(
     user: UserCreate,
@@ -567,21 +570,23 @@ async def create_user(
     ...
 ```
 
-### 列表接口与分页
+### List Endpoints and Pagination
 
-列表 / 查询接口必须分页，禁止无上限全量返回。统一用 limit/offset 分页参数，并返回带总数的分页响应结构，便于前端渲染分页器。
+List / query endpoints must paginate; returning unlimited full datasets is prohibited. Use unified limit/offset pagination parameters and return a paginated response structure with total count, for frontend paginator rendering.
 
 ```python
 class PageParams(BaseModel):
     limit: Annotated[int, Field(default=20, ge=1, le=100)]
     offset: Annotated[int, Field(default=0, ge=0)]
+
 class Page[T](BaseModel):
-    """统一分页响应。"""
+    """Unified paginated response."""
 
     items: list[T]
     total: int
     limit: int
     offset: int
+
 @router.get("/user/list")
 async def list_users(
     page: Annotated[PageParams, Query()],
@@ -596,53 +601,54 @@ async def list_users(
     )
 ```
 
-约定：
-- `limit` 必须有上限（如 `le=100`），防止单次拉全表
-- Repository / Service 同时返回当页数据和 `total`，不在路由层二次查询
-- 数据量大或要求稳定翻页时改用 cursor 分页（按有序键游标），避免深 offset 的性能问题
+Conventions:
+- `limit` must have an upper bound (e.g. `le=100`) to prevent single-request full table pulls
+- Repository / Service returns both current page data and `total`; do not perform secondary queries in the route layer
+- For large datasets or stable pagination requirements, switch to cursor pagination (ordered key cursor) to avoid deep offset performance issues
 
-## 6. 类型注解
+## 6. Type Annotations
 
-### Python 版本口径
+### Python Version Policy
 
-新项目默认使用 Python 3.14；既有项目以当前 `pyproject.toml`、ty 配置和 CI 运行版本为准。除非用户明确要求升级，否则不要仅因本规范修改项目的 Python 版本。
+New projects default to Python 3.14; existing projects follow the current Python version in `pyproject.toml`, ty configuration, and CI. Do not modify a project's Python version solely because of this standard unless the user explicitly requests an upgrade.
 
-### 核心原则
+### Core Principles
 
-- 所有公共接口必须有完整类型注解
-- 使用目标项目支持的最新 Python 类型语法
-- 使用 `|` 而不是 `Union`
-- 使用 `| None` 而不是 `Optional`
+- All public interfaces must have complete type annotations
+- Use the latest Python type syntax supported by the target project
+- Use `|` instead of `Union`
+- Use `| None` instead of `Optional`
 
-### 基本类型注解
+### Basic Type Annotations
 
 ```python
-
 def greet(name: str) -> str:
     return f"Hello, {name}!"
+
 def calculate_total(prices: list[float], tax_rate: float = 0.1) -> float:
     subtotal = sum(prices)
     return subtotal * (1 + tax_rate)
 ```
 
-### Union 和 Optional
+### Union and Optional
 
 ```python
-# ✅ 正确: 使用 |
+# ✅ Correct: use |
 def normalize_identifier(value: str | int) -> str:
     ...
 
-# ✅ 正确: 使用 | None
+# ✅ Correct: use | None
 def get_user(user_id: int) -> User | None:
     ...
 ```
 
-### 泛型（Python 3.12+）
+### Generics (Python 3.12+)
 
 ```python
-# ✅ Python 3.12+ 语法
+# ✅ Python 3.12+ syntax
 def first[T](items: Sequence[T]) -> T | None:
     return items[0] if items else None
+
 class Container[T]:
     def __init__(self, value: T) -> None:
         self.value = value
@@ -651,79 +657,80 @@ class Container[T]:
         return self.value
 ```
 
-### 避免循环导入
+### Avoiding Circular Imports
 
 ```python
-
 if TYPE_CHECKING:
     from project_name.domain.user.repository import UserRepository
+
 class UserService:
     def __init__(self, repository: UserRepository) -> None:
         self._repository = repository
 ```
 
-### 时间与时区
+### Time and Timezones
 
-后端时间统一用 timezone-aware 的 UTC，存储和内部传递都用 UTC，仅在展示层按需转换时区。
+Backend time uniformly uses timezone-aware UTC; store and internally pass in UTC, converting timezones only at the presentation layer when needed.
 
 ```python
-# ❌ 错误: naive datetime，无时区信息，跨时区/序列化会出错
+# ❌ Wrong: naive datetime, no timezone info, breaks across timezones/serialization
 created_at = datetime.now()
-expired = datetime.utcnow()  # 已废弃，且仍是 naive
+expired = datetime.utcnow()  # deprecated, still naive
 
-# ✅ 正确: 带时区的 UTC
+# ✅ Correct: timezone-aware UTC
 created_at = datetime.now(UTC)
 ```
 
-约定：
-- 禁止 `datetime.now()` / `datetime.utcnow()` 等 naive 写法；一律 `datetime.now(UTC)`
-- 数据库列用 `timestamptz`（带时区），不用 naive timestamp
-- Pydantic 接收 `datetime` 字段时，对无时区输入应拒绝或显式补 UTC，不要静默当本地时间
+Conventions:
+- Prohibit `datetime.now()` / `datetime.utcnow()` and other naive forms; always use `datetime.now(UTC)`
+- Database columns use `timestamptz` (timezone-aware), not naive timestamp
+- When Pydantic receives `datetime` fields, reject timezone-less input or explicitly add UTC; do not silently treat as local time
 
-## 7. 控制流与代码复杂度
 
-### 核心原则
+## 7. Control Flow and Code Complexity
 
-1. 复杂条件优先拆成有语义的中间变量或私有函数
-2. 对同一个状态、命令、事件或领域对象做分支处理时，优先使用 `match/case` 或映射表
-3. 保留 `if` 用于范围判断、多个条件组合、需要短路求值或条件之间并非同一维度的场景
-4. 禁止在 src 路径使用 assert 做条件判断（仅用于测试代码）
+### Core Principles
 
-### 禁止在 src 路径使用 assert 做条件判断
+1. Complex conditions should be split into semantically meaningful intermediate variables or private functions
+2. When branching on the same state, command, event, or domain object, prefer `match/case` or lookup tables
+3. Reserve `if` for range checks, multiple condition combinations, short-circuit evaluation needs, or conditions that are not the same dimension
+4. Prohibit using `assert` for condition checks in `src` paths (only for test code)
+
+### Prohibit assert for Condition Checks in src Paths
 
 ```python
-# ❌ 错误: 在 src 路径使用 assert（python -O 会跳过）
+# ❌ Wrong: using assert in src path (skipped by python -O)
 def process_user_input(data):
-    assert data is not None  # 禁止！生产环境会跳过
+    assert data is not None  # Prohibited! Skipped in production
     return data.upper()
 
-# ✅ 正确: 在业务代码中使用显式检查
+# ✅ Correct: explicit check in business code
 def process_user_input(data):
     if data is None:
         raise ValueError("Data cannot be None")
     return data.upper()
 
-# ✅ 正确: 在测试代码中使用 assert
+# ✅ Correct: using assert in test code
 # tests/test_service.py
 def test_process_user_input():
     result = process_user_input("hello")
-    assert result == "HELLO"  # 测试中可以使用
+    assert result == "HELLO"  # Allowed in tests
 ```
 
-### 多分支判断优先使用 match/case 或映射表
+### Prefer match/case or Lookup Tables for Multi-branch Logic
 
-`match/case` 适合对同一对象做结构化分支（字段绑定、类型守卫、多值合并）；映射表适合“枚举/字符串 → 处理函数”这种纯分发场景。
+`match/case` suits structured branching on the same object (field binding, type guards, multi-value union); lookup tables suit "enum/string → handler function" pure dispatch scenarios.
 
-常用模式（每种示意一行即可）：
+Common patterns (one example per line is sufficient):
 
-- 字面量 / 枚举：`case "paid":`、`case OrderStatus.PAID:`
-- 多值合并：`case EventType.MESSAGE | EventType.ALERT:`
-- 字段绑定：`case SseEvent(event=EventType.FAQ, data=data):`
-- 守卫条件：`case ... if isinstance(data, ChatObjectChunk):`
-- 默认分支：`case _:`
+- Literal / enum: `case "paid":`, `case OrderStatus.PAID:`
+- Multi-value union: `case EventType.MESSAGE | EventType.ALERT:`
+- Field binding: `case SseEvent(event=EventType.FAQ, data=data):`
+- Guard condition: `case ... if isinstance(data, ChatObjectChunk):`
+- Default branch: `case _:`
 
 ```python
-# ✅ match/case：字段绑定 + 类型守卫 + 多值合并
+# ✅ match/case: field binding + type guard + multi-value union
 match event:
     case SseEvent(event=EventType.INTERRUPT):
         mark_interrupted()
@@ -734,7 +741,7 @@ match event:
     case _:
         handle_unknown(event)
 
-# ✅ 映射表：纯分发，避免长 if/elif
+# ✅ Lookup table: pure dispatch, avoiding long if/elif
 HANDLERS = {
     OrderStatus.PAID: handle_paid,
     OrderStatus.REFUNDED: handle_refunded,
@@ -742,97 +749,99 @@ HANDLERS = {
 HANDLERS.get(order.status, handle_default)(order)
 ```
 
-约束：分支按顺序匹配，具体模式靠前；只在处理逻辑一致时用 `|` 合并；`if` 守卫只补充当前模式的额外条件，不要塞复杂业务；分支体超过几行就提取私有函数；不要用裸变量名匹配常量（`case PAID:` 会变成捕获，要用 `OrderStatus.PAID`）；必须显式处理未知分支。
+Constraints: branches match in order, specific patterns first; only use `|` when handling logic is identical; `if` guards only supplement extra conditions for the current pattern, do not stuff complex business logic; if a branch body exceeds a few lines, extract a private function; do not use bare variable names to match constants (`case PAID:` becomes capture, use `OrderStatus.PAID`); must explicitly handle unknown branches.
 
-## 8. 异常处理
+## 8. Exception Handling
 
-### 核心原则
+### Core Principles
 
-1. 使用内置异常类
-2. 自定义异常继承自现有异常，类名以 `Error` 结尾
-3. 禁止裸露捕获（`except:`），禁止吞掉宽泛异常
-4. 最小化 try 块
+1. Use built-in exception classes
+2. Custom exceptions inherit from existing exceptions, class names end with `Error`
+3. Prohibit bare catches (`except:`), prohibit swallowing broad exceptions
+4. Minimize try blocks
 
-### 捕获特定异常
+### Catch Specific Exceptions
 
 ```python
-# ✅ 正确: 捕获特定异常，最小化 try 块
+# ✅ Correct: catch specific exceptions, minimize try block
 try:
     value = dictionary[key]
 except KeyError:
     logger.warning(f"Key {key} not found")
     value = default_value
 
-# ✅ 正确: 捕获多个特定异常
+# ✅ Correct: catch multiple specific exceptions
 try:
     result = int(user_input)
 except (ValueError, TypeError) as e:
     logger.error(f"Invalid input: {e}")
     result = 0
 
-# ❌ 错误: 裸露捕获，会吞掉 KeyboardInterrupt
+# ❌ Wrong: bare catch, swallows KeyboardInterrupt
 try:
     do_something()
 except:
     pass
 
-# ❌ 错误: 捕获 Exception 但不记录、不包装、不重新抛出
+# ❌ Wrong: catches Exception but does not log, wrap, or re-raise
 try:
     do_something()
 except Exception:
-    pass  # 吞掉了所有异常
+    pass  # Swallows all exceptions
 ```
 
-### 宽泛异常的允许场景
+### Allowed Scenarios for Broad Exceptions
 
-以下边界场景允许捕获 `Exception`，但必须记录、包装或重新抛出：
+The following boundary scenarios allow catching `Exception`, but must log, wrap, or re-raise:
 
-- 全局异常处理器：记录完整堆栈，返回统一错误响应
-- 事务上下文：异常时 rollback，然后重新抛出
-- 任务入口或后台任务边界：记录失败原因，避免任务静默退出
-- 包装第三方库异常：转换成项目内异常，并使用 `raise ... from e` 保留原始异常链
+- Global exception handler: log full stack trace, return unified error response
+- Transaction context: rollback on exception, then re-raise
+- Task entry or background task boundaries: log failure reason, avoid silent task exit
+- Wrapping third-party library exceptions: convert to project-internal exceptions, use `raise ... from e` to preserve original exception chain
 
-### 自定义异常
+### Custom Exceptions
 
 ```python
-# ✅ 正确: 自定义异常
+# ✅ Correct: custom exceptions
 class DatabaseConnectionError(Exception):
-    """数据库连接失败时抛出。"""
+    """Raised when database connection fails."""
+
 class UserNotFoundError(Exception):
-    """用户不存在时抛出。"""
+    """Raised when user does not exist."""
 
     def __init__(self, user_id: int) -> None:
         self.user_id = user_id
         super().__init__(f"User {user_id} not found")
+
 class ValidationError(ValueError):
-    """数据验证失败时抛出。"""
+    """Raised when data validation fails."""
 
     def __init__(self, field: str, message: str) -> None:
         self.field = field
         super().__init__(f"{field}: {message}")
 ```
 
-### 重新抛出异常
+### Re-raising Exceptions
 
 ```python
-# ✅ 正确: 重新抛出时可以捕获广泛异常
+# ✅ Correct: can catch broad exceptions when re-raising
 try:
     process_data()
 except Exception as e:
     logger.exception("Processing failed")
-    raise  # 必须重新抛出
+    raise  # Must re-raise
 
-# ✅ 正确: 包装异常
+# ✅ Correct: wrap exceptions
 try:
     connect_to_database()
 except ConnectionError as e:
     raise DatabaseConnectionError("Failed to connect") from e
 ```
 
-### 最小化 try 块
+### Minimize try Blocks
 
 ```python
-# ❌ 错误: try 块太大
+# ❌ Wrong: try block too large
 try:
     user = get_user(user_id)
     validate_user(user)
@@ -842,7 +851,7 @@ try:
 except Exception as e:
     logger.error(f"Error: {e}")
 
-# ✅ 正确: 只包裹可能失败的操作
+# ✅ Correct: only wrap operations that may fail
 user = get_user(user_id)
 validate_user(user)
 process_user(user)
@@ -856,17 +865,17 @@ except DatabaseError as e:
 send_notification(user)
 ```
 
-### 上下文管理器
+### Context Managers
 
 ```python
-# ✅ 正确: 使用 with 自动处理资源
+# ✅ Correct: use with for automatic resource handling
 with open("file.txt") as f:
     content = f.read()
 
-# ✅ 正确: 自定义上下文管理器
+# ✅ Correct: custom context manager
 @contextmanager
 def database_transaction():
-    """数据库事务上下文管理器。"""
+    """Database transaction context manager."""
     conn = get_connection()
     try:
         yield conn
@@ -876,66 +885,68 @@ def database_transaction():
         raise
     finally:
         conn.close()
-# 使用
+
+# Usage
 with database_transaction() as conn:
     conn.execute("INSERT INTO users ...")
 ```
 
-## 9. 导入规范
 
-### 核心原则
+## 9. Import Standards
 
-- 使用 `import x` 导入包和模块
-- 使用 `from x import y`，其中 `x` 是包前缀，`y` 是模块名
-- 禁止相对导入
-- 禁止通配符导入
-- 使用完整包路径
+### Core Principles
 
-### 正确的导入方式
+- Use `import x` to import packages and modules
+- Use `from x import y`, where `x` is the package prefix and `y` is the module name
+- Prohibit relative imports
+- Prohibit wildcard imports
+- Use full package paths
+
+### Correct Import Styles
 
 ```python
-# ✅ 正确: 导入模块
+# ✅ Correct: import module
 from sound.effects import echo
 echo.echofilter(...)
 
-# ✅ 正确: 使用别名解决冲突或缩短名称
+# ✅ Correct: use alias to resolve conflicts or shorten names
 from absl import flags as absl_flags
 from my_project.models import User as ProjectUser
 
-# ✅ 正确: typing 模块例外，可以直接导入类型
+# ✅ Correct: typing module exception, types can be imported directly
 from typing import Any
 from collections.abc import Mapping, Sequence
 
-# ✅ 正确: 使用完整包路径
+# ✅ Correct: use full package path
 from my_project.database import connection
 from my_project.models.user import User
 ```
 
-### 错误的导入方式
+### Incorrect Import Styles
 
 ```python
-# ❌ 错误: 相对导入
+# ❌ Wrong: relative imports
 from ..models import User
 from . import utils
 
-# ❌ 错误: 通配符导入
+# ❌ Wrong: wildcard imports
 from my_module import *
 
-# ❌ 错误: 假设模块在当前目录
+# ❌ Wrong: assuming module is in current directory
 import models
 from user import User
 ```
 
-### 导入顺序
+### Import Order
 
-按照以下顺序组织导入，每组之间空一行：
+Organize imports in the following order, with a blank line between each group:
 
-1. 标准库导入
-2. 第三方库导入
-3. 本地应用/库导入
+1. Standard library imports
+2. Third-party library imports
+3. Local application/library imports
 
 ```python
-# ✅ 正确: 导入顺序
+# ✅ Correct: import order
 import os
 import sys
 from pathlib import Path
@@ -947,207 +958,220 @@ from my_project.core.config import SETTINGS
 from my_project.domain.user.models import User
 ```
 
-### 避免循环导入
+### Avoiding Circular Imports
 
 ```python
-# ✅ 正确: 使用 TYPE_CHECKING 避免循环导入
+# ✅ Correct: use TYPE_CHECKING to avoid circular imports
 from typing import TYPE_CHECKING
 
 if TYPE_CHECKING:
     from my_project.domain.user.repository import UserRepository
+
 class UserService:
     def __init__(self, repository: UserRepository) -> None:
-        # 类型注解延迟求值，不会在运行时导入
+        # Type annotations are lazily evaluated, not imported at runtime
         self._repository = repository
 ```
 
-### 条件导入
+### Conditional Imports
 
 ```python
-# ✅ 正确: 可选依赖的条件导入
+# ✅ Correct: conditional import for optional dependencies
 try:
     import numpy as np
     HAS_NUMPY = True
 except ImportError:
     HAS_NUMPY = False
+
 def process_array(data):
     if HAS_NUMPY:
         return np.array(data)
     return list(data)
 ```
 
+## 10. Naming Conventions
 
-## 10. 命名规范
+### Naming Style Overview
 
-### 命名风格总览
+| Type | Style | Example |
+|------|-------|---------|
+| File names | `snake_case` | `my_module.py` |
+| Package names | `lowercase` | `mypackage` |
+| Class names | `PascalCase` | `MyClass` |
+| Exceptions | `PascalCase` + Error | `MyError` |
+| Functions / methods | `snake_case` | `my_function` |
+| Variables | `snake_case` | `my_variable` |
+| Constants | `UPPER_CASE` | `MY_CONSTANT` |
+| Private members | `_snake_case` | `_private_var` |
 
-| 类型 | 风格 | 示例 |
-|------|------|------|
-| 文件名 | `snake_case` | `my_module.py` |
-| 包名 | `lowercase` | `mypackage` |
-| 类名 | `PascalCase` | `MyClass` |
-| 异常 | `PascalCase` + Error | `MyError` |
-| 函数/方法 | `snake_case` | `my_function` |
-| 变量 | `snake_case` | `my_variable` |
-| 常量 | `UPPER_CASE` | `MY_CONSTANT` |
-| 私有成员 | `_snake_case` | `_private_var` |
-
-### 类命名
+### Class Naming
 
 ```python
-# ✅ 正确: 类名使用 PascalCase
+# ✅ Correct: class names use PascalCase
 class UserService:
     pass
+
 class DatabaseConnection:
     pass
+
 class HTTPClient:
     pass
-# ✅ 正确: 异常类以 Error 结尾
+
+# ✅ Correct: exception classes end with Error
 class ValidationError(Exception):
     pass
+
 class DatabaseConnectionError(Exception):
     pass
 ```
 
-### 函数和变量命名
+### Function and Variable Naming
 
 ```python
-# ✅ 正确: 函数和变量使用 snake_case
+# ✅ Correct: functions and variables use snake_case
 def calculate_total_price(items: list[Item]) -> float:
     total_price = 0.0
     for item in items:
         total_price += item.price
     return total_price
-# ✅ 正确: 私有函数和变量使用 _snake_case
+
+# ✅ Correct: private functions and variables use _snake_case
 def _internal_helper(data: str) -> str:
     return data.upper()
+
 class MyClass:
     def __init__(self) -> None:
         self._private_var = 0
 ```
 
-> 单下划线 `_x` 是「内部使用」的约定（不强制访问限制）；双下划线 `__x` 会触发 name mangling，仅在确实需要避免子类属性命名冲突时用，普通私有成员一律用单下划线，不要滥用 `__`。
+> Single underscore `_x` is a convention for "internal use" (not enforced access restriction); double underscore `__x` triggers name mangling, only use when truly needed to avoid subclass attribute naming conflicts; for ordinary private members always use single underscore, do not abuse `__`.
 
-### 常量命名
+### Constant Naming
 
 ```python
-# ✅ 正确: 常量使用 UPPER_CASE
+# ✅ Correct: constants use UPPER_CASE
 MAX_RETRY_COUNT = 3
 DEFAULT_TIMEOUT = 30
 API_BASE_URL = "https://api.example.com"
 
-# ✅ 正确: 私有常量
+# ✅ Correct: private constants
 _DEFAULT_BUFFER_SIZE = 1024
 ```
 
-### FastAPI 路由命名
+### FastAPI Route Naming
 
-详见 [5. FastAPI 开发 - 路由命名规范](#路由命名规范)。
+See [5. FastAPI Development - Route Naming Conventions](#route-naming-conventions).
 
-### Pydantic 模型命名
+### Pydantic Model Naming
 
 ```python
-# ✅ 正确: 请求模型以动作结尾
+# ✅ Correct: request models end with an action
 class UserCreate(BaseModel):
-    """创建用户请求。"""
+    """Create user request."""
     pass
+
 class UserUpdate(BaseModel):
-    """更新用户请求。"""
+    """Update user request."""
     pass
+
 class OrderQuery(BaseModel):
-    """订单查询参数。"""
+    """Order query parameters."""
     pass
-# ✅ 正确: 响应模型以 Response 或 Item 结尾
+
+# ✅ Correct: response models end with Response or Item
 class UserResponse(BaseModel):
-    """用户响应。"""
+    """User response."""
     pass
+
 class UserItem(BaseModel):
-    """用户列表项。"""
+    """User list item."""
     pass
-# ✅ 正确: 通用模型直接使用名词
+
+# ✅ Correct: general models use noun directly
 class User(BaseModel):
-    """用户模型。"""
+    """User model."""
     pass
 ```
 
-### 文件命名
+### File Naming
 
 ```python
-# ✅ 正确: 文件名使用 snake_case
+# ✅ Correct: file names use snake_case
 user_service.py
 database_connection.py
 http_client.py
 
-# ❌ 错误
+# ❌ Wrong
 UserService.py
 databaseConnection.py
 HTTPClient.py
 ```
 
-### 包命名
+### Package Naming
 
 ```
-# ✅ 正确: 包名使用 lowercase
+# ✅ Correct: package names use lowercase
 myproject/
     core/
     domain/
     utils/
 
-# ❌ 错误
+# ❌ Wrong
 MyProject/
     Core/
     Domain/
 ```
 
-### 布尔变量命名
+### Boolean Variable Naming
 
 ```python
-# ✅ 正确: 使用 is_, has_, can_ 等前缀
+# ✅ Correct: use is_, has_, can_ prefixes
 is_active = True
 has_permission = False
 can_edit = True
 
-# ✅ 正确: 在类中
+# ✅ Correct: in classes
 class User:
     def __init__(self) -> None:
         self.is_admin = False
         self.has_verified_email = False
 ```
 
-### 避免的命名
+### Names to Avoid
 
 ```python
-# ❌ 错误: 单字母变量（除了循环计数器）
-def process(d):  # d 是什么？
+# ❌ Wrong: single-letter variables (except loop counters)
+def process(d):  # What is d?
     pass
 
-# ✅ 正确: 使用描述性名称
+# ✅ Correct: use descriptive names
 def process(user_payload: UserPayload) -> None:
     pass
 
-# ❌ 错误: 使用 Python 内置名称
-list = [1, 2, 3]  # 覆盖了内置的 list
-dict = {}         # 覆盖了内置的 dict
+# ❌ Wrong: using Python built-in names
+list = [1, 2, 3]  # shadows built-in list
+dict = {}         # shadows built-in dict
 
-# ✅ 正确: 使用其他名称
+# ✅ Correct: use other names
 items = [1, 2, 3]
 data = {}
 ```
 
-## 11. 异步 I/O 与并发
 
-### 核心原则
+## 11. Async I/O and Concurrency
 
-- FastAPI 路由优先使用 `async def`，但**严禁**在 `async` 函数中调用阻塞 I/O
-- 所有外部调用（HTTP、数据库、Redis、消息队列）必须使用异步客户端
-- 不可避免的阻塞调用必须用 `asyncio.to_thread` 或线程池隔离
-- CPU 密集型任务使用进程池（`ProcessPoolExecutor`），不要在事件循环中执行
-- HTTP 客户端必须复用连接池，禁止每次请求创建新 client
+### Core Principles
 
-### 阻塞调用的处理
+- FastAPI routes prefer `async def`, but **strictly prohibited** from calling blocking I/O inside `async` functions
+- All external calls (HTTP, database, Redis, message queue) must use async clients
+- Unavoidable blocking calls must be isolated with `asyncio.to_thread` or a thread pool
+- CPU-intensive tasks use process pool (`ProcessPoolExecutor`), do not execute in the event loop
+- HTTP clients must reuse connection pools; creating a new client per request is prohibited
+
+### Handling Blocking Calls
 
 ```python
-# ❌ 错误: async 函数中直接调用阻塞 I/O，会阻塞整个事件循环
+# ❌ Wrong: directly calling blocking I/O in async function, blocks entire event loop
 import requests
 
 @router.get("/weather")
@@ -1155,13 +1179,12 @@ async def get_weather(city: str) -> dict:
     response = requests.get(f"https://api.example.com/weather?city={city}")
     return response.json()
 
-# ❌ 错误: async 函数中执行阻塞计算
+# ❌ Wrong: executing blocking computation in async function
 @router.post("/hash")
 async def compute_hash(data: bytes) -> str:
-    return slow_hash_function(data)  # 阻塞 100ms+
+    return slow_hash_function(data)  # blocks for 100ms+
 
-# ✅ 正确: 使用异步 HTTP 客户端
-
+# ✅ Correct: use async HTTP client
 @router.get("/weather")
 async def get_weather(
     city: str,
@@ -1174,20 +1197,18 @@ async def get_weather(
     response.raise_for_status()
     return response.json()
 
-# ✅ 正确: 阻塞调用放入线程池
-
+# ✅ Correct: put blocking calls in thread pool
 @router.post("/hash")
 async def compute_hash(data: bytes) -> str:
     return await asyncio.to_thread(slow_hash_function, data)
 ```
 
-### HTTP 客户端连接池
+### HTTP Client Connection Pool
 
 ```python
-
 @asynccontextmanager
 async def lifespan(app: FastAPI) -> AsyncIterator[None]:
-    """应用生命周期：启动时创建连接池，关闭时释放。"""
+    """Application lifespan: create connection pool on startup, release on shutdown."""
     app.state.http_client = httpx.AsyncClient(
         timeout=httpx.Timeout(connect=5.0, read=30.0, write=10.0, pool=5.0),
         limits=httpx.Limits(max_connections=100, max_keepalive_connections=20),
@@ -1196,15 +1217,15 @@ async def lifespan(app: FastAPI) -> AsyncIterator[None]:
         yield
     finally:
         await app.state.http_client.aclose()
+
 async def get_http_client(request: Request) -> httpx.AsyncClient:
     return request.app.state.http_client
 ```
 
-### 并发执行多个异步任务
+### Concurrent Execution of Multiple Async Tasks
 
 ```python
-
-# ✅ 正确: 并发执行独立任务
+# ✅ Correct: execute independent tasks concurrently
 async def fetch_user_dashboard(user_id: int) -> Dashboard:
     profile, orders, messages = await asyncio.gather(
         fetch_profile(user_id),
@@ -1213,7 +1234,7 @@ async def fetch_user_dashboard(user_id: int) -> Dashboard:
     )
     return Dashboard(profile=profile, orders=orders, messages=messages)
 
-# ✅ 正确: 限制并发数量，避免压垮下游
+# ✅ Correct: limit concurrency to avoid overwhelming downstream
 async def batch_fetch(user_ids: list[int]) -> list[User]:
     semaphore = asyncio.Semaphore(10)
 
@@ -1223,58 +1244,57 @@ async def batch_fetch(user_ids: list[int]) -> list[User]:
 
     return await asyncio.gather(*[fetch_one(uid) for uid in user_ids])
 
-# ✅ 正确: 使用 TaskGroup（Python 3.11+），异常自动取消同组任务
+# ✅ Correct: use TaskGroup (Python 3.11+), exceptions auto-cancel sibling tasks
 async def process(user_id: int) -> None:
     async with asyncio.TaskGroup() as tg:
         tg.create_task(send_email(user_id))
         tg.create_task(update_metrics(user_id))
 ```
 
-### 同步与异步函数的选择
+### Choosing Between Sync and Async Functions
 
-| 场景 | 路由签名 |
-|------|---------|
-| 路由内有 `await`（DB、HTTP、Redis 等） | `async def` |
-| 路由内无 I/O，仅 CPU 计算 | `def`（FastAPI 自动放线程池） |
-| 路由内有阻塞 I/O 且无法替换为异步库 | `def`（让 FastAPI 处理）或 `async def` + `to_thread` |
+| Scenario | Route Signature |
+|----------|-----------------|
+| Route has `await` (DB, HTTP, Redis, etc.) | `async def` |
+| Route has no I/O, only CPU computation | `def` (FastAPI auto-places in thread pool) |
+| Route has blocking I/O that cannot be replaced with async library | `def` (let FastAPI handle) or `async def` + `to_thread` |
 
-> ❗ 不要在 `async def` 路由里调用同步阻塞库（如 `requests`、`pymysql`、`time.sleep`）。
+> ❗ Do not call synchronous blocking libraries (e.g. `requests`, `pymysql`, `time.sleep`) inside `async def` routes.
 
-## 12. 统一错误响应
+## 12. Unified Error Responses
 
-### 核心原则
+### Core Principles
 
-- 所有 API 错误响应必须遵循统一结构（`code` / `message` / `detail`）
-- 业务错误使用自定义异常 + 全局异常处理器，避免在路由中散写 `HTTPException`
-- HTTP 状态码语义化：4xx 客户端错误，5xx 服务端错误
-- 永远不要把内部异常堆栈、SQL 语句、敏感信息直接返回给客户端
+- All API error responses must follow a unified structure (`code` / `message` / `detail`)
+- Business errors use custom exceptions + global exception handlers; avoid scattering `HTTPException` in routes
+- HTTP status codes are semantic: 4xx client errors, 5xx server errors
+- Never return internal exception stack traces, SQL statements, or sensitive information directly to clients
 
-### 统一响应模型
+### Unified Response Model
 
 ```python
-
 class ErrorResponse(BaseModel):
-    """统一错误响应。"""
+    """Unified error response."""
 
-    code: str = Field(description="业务错误码", examples=["USER_NOT_FOUND"])
-    message: str = Field(description="可展示给用户的错误信息")
+    code: str = Field(description="Business error code", examples=["USER_NOT_FOUND"])
+    message: str = Field(description="User-facing error message")
     detail: dict[str, Any] | None = Field(
         default=None,
-        description="额外调试信息 JSON object（只放动态上下文，不承载复杂业务对象）",
+        description="Additional debug info JSON object (only dynamic context, no complex business objects)",
     )
 ```
 
-> `detail` 用 `dict[str, Any]` 是第 1 章「数据载体选择」明确允许的例外：错误响应的附加上下文是动态键值，不构成需要建模的业务对象。
+> Using `dict[str, Any]` for `detail` is an explicit exception allowed by Chapter 1 "Data Carrier Selection": error response additional context is dynamic key-value, not a business object that needs modeling.
 
-### 业务异常基类
+### Business Exception Base Class
 
 ```python
 class AppError(Exception):
-    """业务异常基类。"""
+    """Business exception base class."""
 
     code: str = "INTERNAL_ERROR"
     status_code: int = 500
-    message: str = "服务内部错误"
+    message: str = "Internal server error"
 
     def __init__(
         self,
@@ -1284,18 +1304,19 @@ class AppError(Exception):
         self.message = message or self.message
         self.detail = detail
         super().__init__(self.message)
+
 class UserNotFoundError(AppError):
     code = "USER_NOT_FOUND"
     status_code = 404
-    message = "用户不存在"
+    message = "User not found"
 ```
 
-### 全局异常处理器
+### Global Exception Handlers
 
 ```python
-
 logger = logging.getLogger(__name__)
 app = FastAPI()
+
 @app.exception_handler(AppError)
 async def handle_app_error(request: Request, exc: AppError) -> JSONResponse:
     return JSONResponse(
@@ -1306,6 +1327,7 @@ async def handle_app_error(request: Request, exc: AppError) -> JSONResponse:
             detail=exc.detail,
         ).model_dump(exclude_none=True),
     )
+
 @app.exception_handler(RequestValidationError)
 async def handle_validation_error(
     request: Request,
@@ -1315,27 +1337,28 @@ async def handle_validation_error(
         status_code=422,
         content=ErrorResponse(
             code="VALIDATION_FAILED",
-            message="请求参数校验失败",
+            message="Request parameter validation failed",
             detail={"errors": exc.errors()},
         ).model_dump(exclude_none=True),
     )
+
 @app.exception_handler(Exception)
 async def handle_unexpected(request: Request, exc: Exception) -> JSONResponse:
-    # 未知异常：记录完整堆栈，但不泄露给客户端
+    # Unknown exceptions: log full stack trace, but do not leak to client
     logger.exception("Unhandled exception on %s %s", request.method, request.url.path)
     return JSONResponse(
         status_code=500,
         content=ErrorResponse(
             code="INTERNAL_ERROR",
-            message="服务内部错误",
+            message="Internal server error",
         ).model_dump(exclude_none=True),
     )
 ```
 
-### 路由中的使用
+### Usage in Routes
 
 ```python
-# ✅ 正确: 抛出业务异常，由全局处理器统一转换
+# ✅ Correct: raise business exceptions, converted uniformly by global handler
 @router.get("/user/{user_id}")
 async def get_user(user_id: int, service: UserServiceDep) -> UserResponse:
     user = await service.get_user(user_id)
@@ -1343,60 +1366,63 @@ async def get_user(user_id: int, service: UserServiceDep) -> UserResponse:
         raise UserNotFoundError(detail={"user_id": user_id})
     return UserResponse.model_validate(user)
 
-# ❌ 错误: 在路由中直接构造响应字典
+# ❌ Wrong: directly constructing response dict in route
 @router.get("/user/{user_id}")
 async def get_user(user_id: int) -> dict:
     user = await find_user(user_id)
     if not user:
-        return {"error": "not found"}  # 结构不统一
+        return {"error": "not found"}  # structure not unified
     return {"data": user}
 
-# ❌ 错误: 直接抛 HTTPException 且无统一结构
+# ❌ Wrong: directly throwing HTTPException without unified structure
 raise HTTPException(status_code=404, detail="user not found")
 ```
 
-### 错误码命名规范
+### Error Code Naming Conventions
 
-- 全大写 + 下划线：`USER_NOT_FOUND`、`ORDER_ALREADY_PAID`
-- 业务前缀分组：`AUTH_*`、`USER_*`、`ORDER_*`、`PAYMENT_*`
-- 错误码与 HTTP 状态码解耦：错误码描述业务语义，HTTP 状态码描述协议层语义
+- ALL_CAPS + underscores: `USER_NOT_FOUND`, `ORDER_ALREADY_PAID`
+- Business prefix grouping: `AUTH_*`, `USER_*`, `ORDER_*`, `PAYMENT_*`
+- Error codes are decoupled from HTTP status codes: error codes describe business semantics, HTTP status codes describe protocol-layer semantics
 
-## 13. 数据库与 Repository
 
-### 核心原则
+## 13. Database and Repository
 
-- 业务代码只能通过 Repository 访问数据库，禁止在 Service / 路由中直接写 SQL 或调用 ORM session
-- 简单 CRUD / 简单只读路由可以通过依赖注入调用 Repository；涉及业务规则、跨 Repository 编排或事务边界时必须进入 Service
-- **事务边界由 Service 层管理**，Repository 只负责单一数据操作，不开启事务
-- 使用异步驱动（`asyncpg` + SQLAlchemy 2.0 async）
-- Repository 返回领域模型或 ORM 实体，**不返回原始 Row / dict**
+### Core Principles
 
-### 分层职责
+- Business code may only access the database through Repository; writing SQL or calling ORM session directly in Service / routes is prohibited
+- Simple CRUD / simple read-only routes may call Repository via dependency injection; when business rules, cross-Repository orchestration, or transaction boundaries are involved, it must go through Service
+- **Transaction boundaries are managed by the Service layer**; Repository is only responsible for single data operations and does not open transactions
+- Use async drivers (`asyncpg` + SQLAlchemy 2.0 async)
+- Repository returns domain models or ORM entities; **do not return raw Row / dict**
 
-| 层 | 职责 | 不应做 |
-|----|------|--------|
-| Repository | 单表 CRUD、查询封装、ORM ↔ 领域模型转换 | 开启/提交事务、调用其他 Repository |
-| Service | 业务逻辑编排、跨 Repository 协调、事务边界 | 直接写 SQL、构造 Query 对象 |
-| Router | 参数校验、调用 Service 或简单 Repository、组装响应 | 承载复杂业务逻辑、直接管理事务 |
+### Layer Responsibilities
 
-### API 层直接调用 Repository 的边界
+| Layer | Responsibilities | Should Not Do |
+|-------|-----------------|---------------|
+| Repository | Single-table CRUD, query encapsulation, ORM ↔ domain model conversion | Open/commit transactions, call other Repositories |
+| Service | Business logic orchestration, cross-Repository coordination, transaction boundaries | Write SQL directly, construct Query objects |
+| Router | Parameter validation, call Service or simple Repository, assemble response | Carry complex business logic, manage transactions directly |
+
+### Boundary for API Layer Directly Calling Repository
 
 ```python
-# ✅ 可以接受: 简单读取，无业务规则、无事务编排
+# ✅ Acceptable: simple read, no business rules, no transaction orchestration
 @router.get("/user/{user_id}")
 async def get_user(user_id: int, repository: UserRepositoryDep) -> UserResponse:
     user = await repository.find_by_id(user_id)
     if not user:
         raise UserNotFoundError(detail={"user_id": user_id})
     return UserResponse.model_validate(user)
-# ❌ 错误: 路由层直接管理事务和跨 Repository 编排
+
+# ❌ Wrong: route layer directly manages transactions and cross-Repository orchestration
 @router.post("/balance/transfer")
 async def transfer_balance(request: TransferBalanceRequest) -> None:
     async with transaction() as session:
         users = UserRepository(session)
         orders = OrderRepository(session)
         ...
-# ✅ 正确: 复杂流程进入 Service，由 Service 管理事务
+
+# ✅ Correct: complex flow enters Service, Service manages transactions
 @router.post("/balance/transfer")
 async def transfer_balance(
     request: TransferBalanceRequest,
@@ -1409,14 +1435,15 @@ async def transfer_balance(
     )
 ```
 
-### Session 与事务管理
+### Session and Transaction Management
 
 ```python
-
+from sqlalchemy.ext.asyncio import (
     AsyncSession,
     async_sessionmaker,
     create_async_engine,
 )
+
 engine = create_async_engine(
     SETTINGS.DATABASE_URL,
     pool_size=10,
@@ -1430,9 +1457,10 @@ SessionFactory = async_sessionmaker(
     expire_on_commit=False,
     autoflush=False,
 )
+
 @asynccontextmanager
 async def transaction() -> AsyncIterator[AsyncSession]:
-    """事务上下文：进入开启事务，正常退出 commit，异常 rollback。"""
+    """Transaction context: enters and opens transaction, commits on normal exit, rollback on exception."""
     async with SessionFactory() as session:
         try:
             yield session
@@ -1442,13 +1470,13 @@ async def transaction() -> AsyncIterator[AsyncSession]:
             raise
 ```
 
-### 请求级 Session 依赖注入
+### Request-level Session Dependency Injection
 
-简单只读 / 简单 CRUD 路由通过 FastAPI 依赖注入获取请求级 session；复杂流程进入 Service，由 Service 用上面的 `transaction()` 显式管理事务边界。
+Simple read-only / simple CRUD routes obtain request-level session through FastAPI dependency injection; complex flows enter Service, and Service uses the `transaction()` above to explicitly manage transaction boundaries.
 
 ```python
 async def get_session() -> AsyncIterator[AsyncSession]:
-    """请求级 session：正常退出 commit，异常 rollback。"""
+    """Request-level session: commits on normal exit, rollback on exception."""
     async with SessionFactory() as session:
         try:
             yield session
@@ -1456,21 +1484,23 @@ async def get_session() -> AsyncIterator[AsyncSession]:
         except Exception:
             await session.rollback()
             raise
+
 AsyncSessionDep = Annotated[AsyncSession, Depends(get_session)]
+
 async def get_user_repository(session: AsyncSessionDep) -> UserRepository:
     return UserRepository(session)
+
 UserRepositoryDep = Annotated[UserRepository, Depends(get_user_repository)]
 ```
 
-约定：
-- `AsyncSessionDep` / `UserRepositoryDep` 供路由和 `get_*_service` 依赖装配复用，不在各处重复构造
-- `get_session` 已经在请求边界提交事务，Repository 内部仍只 `flush`，不 `commit`
-- Service 需要把多个 Repository 放进**同一事务**时，用 `transaction()` 自行管理 session，不复用请求级 session
+Conventions:
+- `AsyncSessionDep` / `UserRepositoryDep` are reused by routes and `get_*_service` dependency assembly; do not repeatedly construct them everywhere
+- `get_session` already commits transactions at the request boundary; Repository internals only `flush`, do not `commit`
+- When Service needs to put multiple Repositories into the **same transaction**, it uses `transaction()` to manage its own session, not reusing the request-level session
 
-### Repository 实现
+### Repository Implementation
 
 ```python
-
 class UserRepository:
     def __init__(self, session: AsyncSession) -> None:
         self._session = session
@@ -1483,13 +1513,13 @@ class UserRepository:
     async def save(self, user: User) -> User:
         orm = UserORM.from_domain(user)
         self._session.add(orm)
-        await self._session.flush()  # 仅 flush，不 commit
+        await self._session.flush()  # only flush, do not commit
         return orm.to_domain()
 ```
 
-> ❗ Repository 内部只 `flush`，不 `commit`。事务边界由 Service 控制。
+> ❗ Repository internals only `flush`, do not `commit`. Transaction boundaries are controlled by Service.
 
-### Service 层管理事务
+### Service Layer Transaction Management
 
 ```python
 class UserService:
@@ -1499,7 +1529,7 @@ class UserService:
         to_user_id: int,
         amount: int,
     ) -> None:
-        # ✅ 正确: Service 控制事务边界，跨 Repository 操作在同一事务中
+        # ✅ Correct: Service controls transaction boundary, cross-Repository operations within same transaction
         async with transaction() as session:
             users = UserRepository(session)
             orders = OrderRepository(session)
@@ -1515,55 +1545,56 @@ class UserService:
             await users.save(sender)
             await users.save(receiver)
             await orders.create_transfer_record(from_user_id, to_user_id, amount)
-        # 退出 with 时自动 commit；异常自动 rollback
+        # auto-commit on with exit; auto-rollback on exception
 ```
 
-## 14. 日志与可观测性
+## 14. Logging and Observability
 
-### 核心原则
+### Core Principles
 
-- 用标准 `logging`，每个模块取 `logger = logging.getLogger(__name__)`，禁止用 `print` 输出运行信息
-- 日志配置集中在 `core/logging.py`，在应用启动（lifespan）时统一初始化一次，不在业务模块各自 `basicConfig`
-- 生产环境输出结构化日志（JSON），便于采集和检索；本地可用可读格式
-- 通过日志级别控制详尽程度（`DEBUG`/`INFO`/`WARNING`/`ERROR`），级别由 `SETTINGS.LOG_LEVEL` 驱动
-- 异常用 `logger.exception(...)` 记录完整堆栈（仅在捕获处），不要把同一异常在每层重复打印
+- Use standard `logging`, each module gets `logger = logging.getLogger(__name__)`; using `print` for runtime info is prohibited
+- Logging configuration is centralized in `core/logging.py`, initialized once at application startup (lifespan); do not call `basicConfig` in individual business modules
+- Production outputs structured logs (JSON) for easy collection and querying; local development may use readable formats
+- Control verbosity through log levels (`DEBUG`/`INFO`/`WARNING`/`ERROR`), driven by `SETTINGS.LOG_LEVEL`
+- Exceptions use `logger.exception(...)` to record full stack trace (only at the catch point); do not print the same exception at every layer
 
-### 日志初始化
+### Logging Initialization
 
 ```python
 def setup_logging() -> None:
-    """应用启动时调用一次，由 SETTINGS.LOG_LEVEL 控制级别。"""
+    """Called once at application startup, level controlled by SETTINGS.LOG_LEVEL."""
     logging.basicConfig(
         level=SETTINGS.LOG_LEVEL.upper(),
         format="%(asctime)s %(levelname)s %(name)s [%(filename)s:%(lineno)d] - %(message)s",
     )
+
 logger = logging.getLogger(__name__)
 ```
 
-### 使用方式
+### Usage
 
 ```python
-# ✅ 正确: 模块级 logger + 参数化日志，惰性格式化
+# ✅ Correct: module-level logger + parameterized logs, lazy formatting
 logger.info("user created: user_id=%s", user.id)
 
-# ✅ 正确: 捕获处记录堆栈
+# ✅ Correct: record stack trace at catch point
 try:
     await charge(order)
 except PaymentError:
     logger.exception("charge failed: order_id=%s", order.id)
     raise
 
-# ❌ 错误: print 输出 / f-string 提前格式化 / 打印敏感字段
+# ❌ Wrong: print output / f-string eager formatting / logging sensitive fields
 print("user created", user)
-logger.info(f"login: token={token}")  # 泄露凭证，且无视级别也会格式化
+logger.info(f"login: token={token}")  # leaks credential, and formats regardless of level
 ```
 
-### 禁止记录的内容
+### Prohibited Log Content
 
-- 密码、token、密钥、Authorization 头、完整身份证 / 银行卡号等敏感数据
-- 完整请求/响应体（可能含敏感字段）；需要时只记必要字段并脱敏
-- 高频路径里的大对象，避免日志量和性能失控
+- Passwords, tokens, keys, Authorization headers, full ID / bank card numbers, and other sensitive data
+- Full request/response bodies (may contain sensitive fields); when needed only log necessary fields and mask them
+- Large objects in high-frequency paths, to avoid excessive log volume and performance degradation
 
-### 可观测性（按需）
+### Observability (As Needed)
 
-需要追踪和指标时，在 `core/observability.py` 集中接入（如 OpenTelemetry）：请求链路注入 trace-id / request-id 并随日志输出，对外部调用（HTTP、DB）埋点。规模较小的项目可只保留结构化日志 + request-id，不强制引入完整 APM。
+When tracing and metrics are needed, centralize integration in `core/observability.py` (e.g. OpenTelemetry): inject trace-id / request-id into request chains and output with logs, instrument external calls (HTTP, DB). Smaller projects may keep only structured logs + request-id without mandating a full APM.

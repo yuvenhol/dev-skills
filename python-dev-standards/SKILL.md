@@ -1,38 +1,38 @@
 ---
 name: python-dev-standards
-description: Python 后端开发规范。用于编写、审查、重构或初始化 Python 后端项目，尤其是 FastAPI、Pydantic v2、SQLAlchemy async、异步 I/O、配置管理、测试、统一错误响应、Repository/Service 分层和工具链配置。
+description: Python backend development standards. Used for writing, reviewing, refactoring, or initializing Python backend projects, especially FastAPI, Pydantic v2, SQLAlchemy async, async I/O, configuration management, testing, unified error responses, Repository/Service layering, and toolchain configuration.
 metadata:
   version: 1.0.0
 ---
 
-# Python 开发规范
+# Python Development Standards
 
-## 使用方式
+## Usage
 
-- 先判断任务类型：新项目初始化、既有项目开发、代码审查、重构、测试补充或文档维护。
-- 具体规则、代码示例和模板都读取 `references/python-dev-standards.md`。该文件是本 skill 的唯一规范正文。
-- `SKILL.md` 只保留入口判断和章节索引，避免复制细则；如果本文件与 reference 不一致，以 reference 为准。
-- 既有项目先读本地 `pyproject.toml`、目录结构、运行环境、CI 和现有测试，再决定适用哪些章节。
+- First determine the task type: new project initialization, existing project development, code review, refactoring, test supplementation, or documentation maintenance.
+- Specific rules, code examples, and templates are all in `references/python-dev-standards.md`. That file is the sole canonical body of this skill.
+- `SKILL.md` only keeps entry logic and section index to avoid duplicating detailed rules; if this file is inconsistent with the reference, the reference prevails.
+- For existing projects, first read the local `pyproject.toml`, directory structure, runtime environment, CI, and existing tests, then decide which sections apply.
 
-## 按任务读取细则
+## Read Rules by Task
 
-| 任务 | 读取章节 |
-|------|----------|
-| 初始化 Python 后端项目 | `1. 项目架构`、`2. 工具链配置模板`、`3. 配置管理`、`4. 测试规范`、`14. 日志与可观测性` |
-| 开发 FastAPI 接口 | `5. FastAPI 开发`、`12. 统一错误响应`、必要时读 `13. 数据库与 Repository` |
-| 设计配置或环境变量 | `3. 配置管理` |
-| 编写或调整测试 | `4. 测试规范` |
-| 做类型、导入、命名清理 | `6. 类型注解`、`9. 导入规范`、`10. 命名规范` |
-| 简化复杂判断或分支逻辑 | `7. 控制流与代码复杂度` |
-| 审查异常处理 | `8. 异常处理`、`12. 统一错误响应` |
-| 处理异步、并发或外部调用 | `11. 异步 I/O 与并发` |
-| 设计 Repository、事务或迁移 | `13. 数据库与 Repository` |
-| 配置日志或可观测性 | `14. 日志与可观测性` |
+| Task | Read Sections |
+|------|---------------|
+| Initialize Python backend project | `1. Project Architecture`, `2. Toolchain Configuration Templates`, `3. Configuration Management`, `4. Testing Standards`, `14. Logging & Observability` |
+| Develop FastAPI endpoints | `5. FastAPI Development`, `12. Unified Error Responses`, read `13. Database & Repository` when necessary |
+| Design config or environment variables | `3. Configuration Management` |
+| Write or adjust tests | `4. Testing Standards` |
+| Clean up types, imports, naming | `6. Type Annotations`, `9. Import Standards`, `10. Naming Conventions` |
+| Simplify complex conditionals or branching | `7. Control Flow & Code Complexity` |
+| Review exception handling | `8. Exception Handling`, `12. Unified Error Responses` |
+| Handle async, concurrency, or external calls | `11. Async I/O & Concurrency` |
+| Design Repository, transactions, or migrations | `13. Database & Repository` |
+| Configure logging or observability | `14. Logging & Observability` |
 
-## 执行准则
+## Execution Guidelines
 
-- 引用规范时给出具体章节或文件位置，避免只说“按规范”。
-- 改既有项目时先读本地代码和配置，再决定适用哪些规范；不要为了符合模板做无关迁移。
-- 当规范与用户明确要求冲突时，先指出冲突和影响，再按用户确认的方向执行。
-- 维护本 skill 时优先更新 `references/python-dev-standards.md`；只有入口流程、触发说明或章节索引变化时才改 `SKILL.md`。
-- 完成代码改动后，优先运行项目已有的 lint、type check 和相关测试；文档或规范改动至少做结构和关键词检查。
+- When referencing standards, cite the specific section or file location; avoid saying just "according to the standard."
+- When modifying existing projects, read local code and config first, then decide which standards apply; do not perform unrelated migrations just to match the template.
+- When the standard conflicts with an explicit user requirement, point out the conflict and impact first, then proceed in the user-confirmed direction.
+- When maintaining this skill, update `references/python-dev-standards.md` first; only modify `SKILL.md` when entry flows, trigger instructions, or section index changes.
+- After completing code changes, prefer running the project's existing lint, type check, and related tests; for documentation or standard changes, do at least structural and keyword checks.
