@@ -1,187 +1,187 @@
 ---
 name: codex-orchestrator
-description: "通用开发任务编排器。将复杂开发任务拆解为专业 agent 角色并协调协作。当需要'组建团队'、'任务分解'、'多 agent 协作'、'组队开发'、'并行开发'、'团队协作'时使用。后续任务支持：'修改团队'、'调整分工'、'重新执行'、'更新计划'、'仅重新执行某阶段'。对于简单任务或单文件改动，直接完成，仅在复杂度确实需要多角色协作时启用。"
+description: "General-purpose development task orchestrator. Breaks complex development tasks down into specialized agent roles and coordinates their collaboration. Use it when you need to 'form a team', 'decompose tasks', 'multi-agent collaboration', 'team-based development', 'parallel development', or 'team collaboration'. Follow-up tasks supported: 'modify the team', 'adjust the division of work', 're-run', 'update the plan', 're-run only a specific phase'. For simple tasks or single-file changes, just do them directly; only enable this when complexity genuinely requires multi-role collaboration."
 metadata:
   version: 1.0.0
 ---
 
-# Team Orchestrator — 通用开发任务编排器（Codex 版）
+# Team Orchestrator — general-purpose development task orchestrator (Codex edition)
 
-将复杂开发任务拆解为专业 agent 角色，选择合适的架构模式，通过文件驱动协调完成任务。
+Break a complex development task down into specialized agent roles, pick a suitable architecture pattern, and coordinate completion through file-driven collaboration.
 
-**核心原则：**
-1. 文件驱动协调 — agent 间通过 `_workspace/` 文件传递数据
-2. 顺序/并行子任务 — 通过执行顺序控制依赖关系
-3. 中间产出物统一存放 `_workspace/` — 命名规范 `{阶段}_{agent}_{产出物}.{ext}`
+**Core principles:**
+1. File-driven coordination — agents pass data through `_workspace/` files.
+2. Sequential/parallel subtasks — dependencies are controlled by execution order.
+3. Intermediate artifacts all go in `_workspace/` — naming convention `{phase}_{agent}_{artifact}.{ext}`.
 
-## 何时启用
+## When to enable
 
-- 用户明确要求“组队”“多 agent 协作”“拆解任务”“并行推进”
-- 任务至少包含 2 个需要不同专业视角的子问题
-- 任务需要显式保留中间设计、审查、测试等产出物以便后续追溯
+- The user explicitly asks for "form a team", "multi-agent collaboration", "decompose the task", or "push forward in parallel".
+- The task contains at least 2 subproblems that need different areas of expertise.
+- The task needs intermediate design, review, or test artifacts explicitly preserved for later traceability.
 
-以下情况不要启用本编排器，直接完成：
-- 简单问答、单文件小改动、局部 Bug 修复
-- 不需要角色分工即可在当前会话中直接完成的任务
-- 只是需要一个专家视角，而不是多角色协作
+Do NOT enable this orchestrator in the following cases — just do the work directly:
+- Simple Q&A, small single-file changes, local bug fixes.
+- Tasks that can be finished directly in the current session without a division of roles.
+- You only need a single expert perspective rather than multi-role collaboration.
 
-## 执行模式
+## Execution modes
 
-Codex 通过顺序或并行子任务调用 agent 角色。agent 间不直接通信，而是通过文件传递数据。
-如果当前环境不适合真实并行或多 agent 委派，则由当前会话按执行顺序串行扮演各角色，仍然使用 `_workspace/` 维护中间产出物和边界。
+Codex invokes agent roles via sequential or parallel subtasks. Agents don't communicate directly; instead they pass data through files.
+If the current environment isn't suitable for true parallelism or multi-agent delegation, the current session plays each role serially in execution order, still using `_workspace/` to maintain intermediate artifacts and boundaries.
 
-| 模式 | 适用场景 | 方式 |
-|------|---------|------|
-| **顺序执行** | 阶段间有依赖 | 按顺序依次调用各角色 |
-| **并行执行** | 独立任务 | 同时启动多个角色 |
-| **迭代执行** | 生成-验证 | 循环调用直到通过验证（最多 2 轮） |
+| Mode | Applicable scenario | Method |
+|------|---------------------|--------|
+| **Sequential** | Dependencies between stages | Invoke each role in order |
+| **Parallel** | Independent tasks | Launch multiple roles at once |
+| **Iterative** | Generate-verify | Loop until verification passes (at most 2 rounds) |
 
-> 详细模式选择指南参照 `references/pattern-selector.md`
+> See `references/pattern-selector.md` for the detailed mode-selection guide.
 
-## 工作流
+## Workflow
 
-### Phase 0: 上下文确认
+### Phase 0: Context confirmation
 
-1. 检查当前项目的 `_workspace/` 目录是否存在
-2. 判断执行模式：
-   - `_workspace/` **不存在** → 初始执行，进入 Phase 1
-   - `_workspace/` **存在** + 用户请求部分修改 → 部分重新执行（仅重跑相关角色）
-   - `_workspace/` **存在** + 全新输入 → 新执行（备份旧 `_workspace/` 为 `_workspace_{YYYYMMDD_HHMMSS}/`）
-3. 识别项目技术栈（检查 pyproject.toml / package.json / Cargo.toml / go.mod 等）
+1. Check whether the current project's `_workspace/` directory exists.
+2. Determine the execution mode:
+   - `_workspace/` **does not exist** → initial run, proceed to Phase 1.
+   - `_workspace/` **exists** + user requests a partial change → partial re-run (only re-run the relevant roles).
+   - `_workspace/` **exists** + brand-new input → new run (back up the old `_workspace/` as `_workspace_{YYYYMMDD_HHMMSS}/`).
+3. Identify the project's tech stack (check pyproject.toml / package.json / Cargo.toml / go.mod, etc.).
 
-### Phase 1: 任务分析
+### Phase 1: Task analysis
 
-1. 理解用户的任务目标和约束
-2. 判定任务性质（新功能 / 调研 / 重构 / 修复 / 文档 / 审查）
-3. 估算任务规模：
-   - 小（1-2 个关注点）→ 单角色直接完成
-   - 中（3-5 个关注点）→ 2-3 个角色
-   - 大（6+ 个关注点）→ 3-5 个角色
-4. 参照 `references/pattern-selector.md` 选择架构模式
-5. 参照 `references/agent-catalog.md` 选择角色组合
-6. 判断是否需要显式确认：
-   - 需求不清、方案分歧较大、执行成本高或可能影响较大时 → 先向用户确认
-   - 用户已明确要求组队执行，且方案清晰、风险可控时 → 直接进入 Phase 2
+1. Understand the user's task goals and constraints.
+2. Determine the nature of the task (new feature / research / refactor / fix / docs / review).
+3. Estimate the task size:
+   - Small (1-2 concerns) → a single role finishes it directly.
+   - Medium (3-5 concerns) → 2-3 roles.
+   - Large (6+ concerns) → 3-5 roles.
+4. Pick an architecture pattern per `references/pattern-selector.md`.
+5. Pick the role combination per `references/agent-catalog.md`.
+6. Decide whether explicit confirmation is needed:
+   - When requirements are unclear, approaches diverge significantly, execution cost is high, or impact could be large → confirm with the user first.
+   - When the user has already explicitly asked for team execution and the approach is clear with controllable risk → proceed directly to Phase 2.
 
-### Phase 2: 执行计划
+### Phase 2: Execution plan
 
-1. 根据 Phase 1 分析结果制定执行计划
-2. 将计划写入 `_workspace/00_project_lead_plan.md`：
-   - 角色列表和职责
-   - 执行顺序和依赖关系
-   - 每个角色的输入文件和输出文件路径
-3. 创建 `_workspace/` 目录
-4. 若不使用真实多 agent，也要在计划中明确“由当前会话串行执行哪些角色”
+1. Draft the execution plan based on the Phase 1 analysis.
+2. Write the plan into `_workspace/00_project_lead_plan.md`:
+   - The list of roles and their responsibilities.
+   - The execution order and dependencies.
+   - The input and output file paths for each role.
+3. Create the `_workspace/` directory.
+4. If not using true multi-agent, the plan must also make clear "which roles the current session plays serially".
 
-### Phase 3: 执行
+### Phase 3: Execution
 
-按执行计划依次或并行调用各角色：
+Invoke each role sequentially or in parallel per the execution plan:
 
-**顺序任务示例（流水线）：**
+**Sequential task example (pipeline):**
 ```
-1. 调用 architect → 读取需求 → 输出 _workspace/01_architect_design.md
-2. 调用 developer → 读取设计文档 → 输出代码 + _workspace/02_developer_changelog.md
-3. 调用 reviewer  → 读取设计 + changelog + 代码 → 输出 _workspace/03_reviewer_report.md
-4. 调用 developer → 读取审查报告 → 修改代码 → 更新 changelog
-5. 调用 tester    → 读取设计 + changelog + 代码 → 输出 _workspace/04_tester_report.md
-```
-
-**并行任务示例（扇出/扇入）：**
-```
-1. 并行调用 researcher-A + researcher-B
-   → 各自输出 _workspace/00_researcher_{topic}_findings.md
-2. 汇总所有 findings 文件 → 生成整合报告
+1. Invoke architect → read requirements → output _workspace/01_architect_design.md
+2. Invoke developer → read the design doc → output code + _workspace/02_developer_changelog.md
+3. Invoke reviewer  → read design + changelog + code → output _workspace/03_reviewer_report.md
+4. Invoke developer → read the review report → revise the code → update the changelog
+5. Invoke tester    → read design + changelog + code → output _workspace/04_tester_report.md
 ```
 
-若当前环境不适合真实并行：
+**Parallel task example (fan-out/fan-in):**
 ```
-1. researcher-A 先完成并写文件
-2. researcher-B 基于同一输入独立完成并写文件
-3. 最后统一汇总
-```
-
-**迭代任务示例（生成-验证）：**
-```
-1. 调用 developer → 输出代码
-2. 调用 reviewer  → 审查 → PASS? 结束 : FIX?
-3. 调用 developer → 修改 → 回到步骤 2（最多 2 轮）
+1. Invoke researcher-A + researcher-B in parallel
+   → each outputs _workspace/00_researcher_{topic}_findings.md
+2. Aggregate all findings files → produce an integrated report
 ```
 
-每个角色执行时：
-- 读取计划中指定的输入文件
-- 执行任务
-- 将产出物写入 `_workspace/{阶段}_{agent}_{产出物}.{ext}`
-- 若为同一会话串行扮演多个角色，必须显式切换视角，并以上一角色产出物作为下一角色输入，避免在脑中“跳步”
-
-### Phase 4: 整合与验证
-
-1. 读取所有角色的产出物
-2. 检查一致性：
-   - 接口定义两侧是否匹配
-   - 产出物间是否有矛盾
-3. 生成最终产出物
-4. 简要质量验证
-
-### Phase 5: 报告
-
-1. 向用户报告完成情况和关键产出物位置
-2. 保留 `_workspace/` 供审计和后续任务使用
-
-## 常用执行模板
-
-### 功能开发
+If the current environment isn't suitable for true parallelism:
 ```
-architect → developer → reviewer → developer(修改) → tester
-模式：顺序执行 + 迭代（审查修改）
+1. researcher-A completes first and writes its file
+2. researcher-B independently completes based on the same input and writes its file
+3. Finally aggregate everything together
 ```
 
-### 技术调研
+**Iterative task example (generate-verify):**
 ```
-researcher-A | researcher-B | researcher-C（并行）→ 汇总
-模式：并行执行 → 汇总
-```
-
-### 代码审查
-```
-reviewer-security | reviewer-performance | reviewer-architecture（并行）→ 汇总报告
-模式：并行执行 → 汇总
+1. Invoke developer → output code
+2. Invoke reviewer  → review → PASS? done : FIX?
+3. Invoke developer → revise → back to step 2 (at most 2 rounds)
 ```
 
-### 大规模重构
+When each role executes:
+- Read the input files specified in the plan.
+- Execute the task.
+- Write the artifact to `_workspace/{phase}_{agent}_{artifact}.{ext}`.
+- If a single session plays multiple roles serially, you must explicitly switch perspective and use the previous role's artifact as the next role's input, avoiding "skipping steps" in your head.
+
+### Phase 4: Integration and verification
+
+1. Read every role's artifacts.
+2. Check consistency:
+   - Do both sides of an interface definition match?
+   - Are there contradictions between artifacts?
+3. Produce the final artifact.
+4. Brief quality verification.
+
+### Phase 5: Reporting
+
+1. Report completion status and the location of key artifacts to the user.
+2. Keep `_workspace/` for auditing and follow-up tasks.
+
+## Common execution templates
+
+### Feature development
 ```
-project-lead(计划) → developer-1 | developer-2(并行) → 逐批验证
-模式：顺序 + 并行 + 迭代
+architect → developer → reviewer → developer(revise) → tester
+Pattern: sequential + iterative (review-revise)
 ```
 
-### 全栈开发
+### Technical research
 ```
-architect → developer-frontend | developer-backend(并行) → tester
-模式：顺序 + 并行 + 顺序
-```
-
-### 文档完善
-```
-tech-writer + researcher（顺序或并行）
-模式：并行执行 → 顺序整合
+researcher-A | researcher-B | researcher-C (parallel) → aggregate
+Pattern: parallel → aggregate
 ```
 
-## 错误处理
+### Code review
+```
+reviewer-security | reviewer-performance | reviewer-architecture (parallel) → aggregated report
+Pattern: parallel → aggregate
+```
 
-| 情况 | 策略 |
-|------|------|
-| 某角色产出物缺失 | 检查 blockers 文件，确定原因后重新调用 |
-| 产出物间数据冲突 | 标注来源并列，不删除任何一方 |
-| 角色执行失败 | 重试一次，仍失败则跳过并在整合时标注 |
-| 超时 | 使用已收集的部分结果，在报告中标注未完成项 |
-| 关键阻塞 | 写入 blockers 文件，通知用户确认 |
+### Large-scale refactoring
+```
+project-lead(plan) → developer-1 | developer-2 (parallel) → verify batch by batch
+Pattern: sequential + parallel + iterative
+```
 
-## 数据传递规范
+### Full-stack development
+```
+architect → developer-frontend | developer-backend (parallel) → tester
+Pattern: sequential + parallel + sequential
+```
 
-所有 agent 间数据传递通过文件完成：
+### Documentation improvement
+```
+tech-writer + researcher (sequential or parallel)
+Pattern: parallel → sequential integration
+```
 
-| 文件 | 写入者 | 读取者 |
+## Error handling
+
+| Situation | Strategy |
+|-----------|----------|
+| A role's artifact is missing | Check the blockers file, determine the cause, then re-invoke |
+| Data conflict between artifacts | Annotate the sources side by side; don't delete either one |
+| A role fails to execute | Retry once; if it still fails, skip it and annotate during integration |
+| Timeout | Use the partial results already collected; mark unfinished items in the report |
+| Critical blocker | Write it into the blockers file and notify the user to confirm |
+
+## Data-passing conventions
+
+All inter-agent data passing is done through files:
+
+| File | Writer | Reader |
 |------|--------|--------|
-| `_workspace/00_project_lead_plan.md` | project-lead | 所有角色 |
+| `_workspace/00_project_lead_plan.md` | project-lead | all roles |
 | `_workspace/00_researcher_{topic}_findings.md` | researcher | architect |
 | `_workspace/01_architect_design.md` | architect | developer, reviewer, tester |
 | `_workspace/02_developer_changelog.md` | developer | reviewer, tester |
@@ -189,8 +189,8 @@ tech-writer + researcher（顺序或并行）
 | `_workspace/04_tester_report.md` | tester | developer |
 | `_workspace/05_techwriter_docs.md` | tech-writer | reviewer |
 
-## 冲突处理协议
+## Conflict-resolution protocol
 
-1. 数据冲突 → 不删除任何一方，标注来源后并列
-2. 设计分歧 → architect 有最终决定权，但需说明理由
-3. 实现与设计不一致 → 在 changelog 中标注差异，由 architect 判断
+1. Data conflict → don't delete either side; annotate the sources and list them side by side.
+2. Design disagreement → the architect has the final say, but must explain the reasoning.
+3. Implementation diverges from design → annotate the difference in the changelog, and the architect makes the call.

@@ -1,174 +1,173 @@
 ---
 name: cc-orchestrator
-description: "通用开发任务编排器。将复杂开发任务拆解为专业 agent 角色并协调协作。当需要'组建团队'、'任务分解'、'多 agent 协作'、'组队开发'、'并行开发'、'团队协作'时使用。后续任务支持：'修改团队'、'调整分工'、'重新执行'、'更新计划'、'仅重新执行某阶段'。对于简单任务或单文件改动，直接完成，仅在复杂度确实需要多角色协作时启用。"
+description: "General-purpose development task orchestrator. Breaks complex development tasks down into specialized agent roles and coordinates their collaboration. Use it when you need to 'form a team', 'decompose tasks', 'multi-agent collaboration', 'team-based development', 'parallel development', or 'team collaboration'. Follow-up tasks supported: 'modify the team', 'adjust the division of work', 're-run', 'update the plan', 're-run only a specific phase'. For simple tasks or single-file changes, just do them directly; only enable this when complexity genuinely requires multi-role collaboration."
 metadata:
   version: 1.0.0
 ---
 
-# Team Orchestrator — 通用开发任务编排器
+# Team Orchestrator — general-purpose development task orchestrator
 
-将复杂开发任务拆解为专业 agent 角色，选择合适的架构模式，协调 agent 团队协作完成任务。
+Break a complex development task down into specialized agent roles, pick a suitable architecture pattern, and coordinate a team of agents to complete the task together.
 
-**核心原则：**
-1. Agent 团队是默认执行模式 — 2 人以上时优先使用 TeamCreate
-2. 角色定义与编排分离 — agent 定义在 `agents/`，编排逻辑在此 skill
-3. 中间产出物统一存放 `_workspace/` — 命名规范 `{阶段}_{agent}_{产出物}.{ext}`
+**Core principles:**
+1. An agent team is the default execution mode — prefer TeamCreate whenever there are 2 or more members.
+2. Role definitions are separate from orchestration — agents are defined in `agents/`, the orchestration logic lives in this skill.
+3. Intermediate artifacts all go in `_workspace/` — naming convention `{phase}_{agent}_{artifact}.{ext}`.
 
-## 何时启用
+## When to enable
 
-- 用户明确要求"组队""多 agent 协作""拆解任务""并行推进"
-- 任务至少包含 2 个需要不同专业视角的子问题
-- 任务需要显式保留中间设计、审查、测试等产出物以便后续追溯
+- The user explicitly asks for "form a team", "multi-agent collaboration", "decompose the task", or "push forward in parallel".
+- The task contains at least 2 subproblems that need different areas of expertise.
+- The task needs intermediate design, review, or test artifacts explicitly preserved for later traceability.
 
-以下情况不要启用本编排器，直接完成：
-- 简单问答、单文件小改动、局部 Bug 修复
-- 不需要角色分工即可在当前会话中直接完成的任务
-- 只是需要一个专家视角，而不是多角色协作
+Do NOT enable this orchestrator in the following cases — just do the work directly:
+- Simple Q&A, small single-file changes, local bug fixes.
+- Tasks that can be finished directly in the current session without a division of roles.
+- You only need a single expert perspective rather than multi-role collaboration.
 
-## 执行模式
+## Execution modes
 
-| 模式 | 适用场景 | 工具 |
-|------|---------|------|
-| **Agent 团队**（默认） | 2+ agent 需要协作、交叉验证 | TeamCreate + SendMessage + TaskCreate |
-| **子 Agent** | 单一任务、仅需结果返回 | Agent 工具 + run_in_background |
-| **混合模式** | 各阶段特性不同 | 按阶段切换模式 |
+| Mode | Applicable scenario | Tools |
+|------|---------------------|-------|
+| **Agent team** (default) | 2+ agents need to collaborate and cross-check | TeamCreate + SendMessage + TaskCreate |
+| **Sub-agent** | A single task, only the result needs to be returned | Agent tool + run_in_background |
+| **Hybrid** | Phases have different characteristics | Switch modes per phase |
 
-> 详细模式选择指南参照 `references/pattern-selector.md`
+> See `references/pattern-selector.md` for the detailed mode-selection guide.
 
-## 工作流
+## Workflow
 
-### Phase 0: 上下文确认
+### Phase 0: Context confirmation
 
-1. 检查当前项目的 `_workspace/` 目录是否存在
-2. 判断执行模式：
-   - `_workspace/` **不存在** → 初始执行，进入 Phase 1
-   - `_workspace/` **存在** + 用户请求部分修改 → 部分重新执行（仅重跑相关 agent）
-   - `_workspace/` **存在** + 全新输入 → 新执行（备份旧 `_workspace/` 为 `_workspace_{YYYYMMDD_HHMMSS}/`）
-3. 识别项目技术栈（检查 pyproject.toml / package.json / Cargo.toml / go.mod 等）
+1. Check whether the current project's `_workspace/` directory exists.
+2. Determine the execution mode:
+   - `_workspace/` **does not exist** → initial run, proceed to Phase 1.
+   - `_workspace/` **exists** + user requests a partial change → partial re-run (only re-run the relevant agents).
+   - `_workspace/` **exists** + brand-new input → new run (back up the old `_workspace/` as `_workspace_{YYYYMMDD_HHMMSS}/`).
+3. Identify the project's tech stack (check pyproject.toml / package.json / Cargo.toml / go.mod, etc.).
 
-### Phase 1: 任务分析
+### Phase 1: Task analysis
 
-1. 理解用户的任务目标和约束
-2. 判定任务性质（新功能 / 调研 / 重构 / 修复 / 文档 / 审查）
-3. 估算任务规模：
-   - 小（1-2 个关注点）→ 无需组队，子 agent 或直接完成
-   - 中（3-5 个关注点）→ 2-3 人团队
-   - 大（6+ 个关注点）→ 3-5 人团队
-4. 参照 `references/pattern-selector.md` 选择架构模式
-5. 参照 `references/agent-catalog.md` 选择 agent 角色组合
-6. 判断是否需要显式确认：
-   - 需求不清、方案分歧较大、执行成本高或可能影响较大时 → 先向用户确认
-   - 用户已明确要求组队执行，且方案清晰、风险可控时 → 直接进入 Phase 2
+1. Understand the user's task goals and constraints.
+2. Determine the nature of the task (new feature / research / refactor / fix / docs / review).
+3. Estimate the task size:
+   - Small (1-2 concerns) → no team needed, sub-agent or do it directly.
+   - Medium (3-5 concerns) → 2-3 person team.
+   - Large (6+ concerns) → 3-5 person team.
+4. Pick an architecture pattern per `references/pattern-selector.md`.
+5. Pick the agent role combination per `references/agent-catalog.md`.
+6. Decide whether explicit confirmation is needed:
+   - When requirements are unclear, approaches diverge significantly, execution cost is high, or impact could be large → confirm with the user first.
+   - When the user has already explicitly asked for team execution and the approach is clear with controllable risk → proceed directly to Phase 2.
 
-### Phase 2: 团队组建
+### Phase 2: Team formation
 
-1. 根据 Phase 1 分析结果组建团队：
-   - `TeamCreate` — 成员引用 `agents/` 目录下的角色定义
-   - 所有 agent 显式设置 `model: "opus"`
-2. `TaskCreate` 注册子任务：
-   - 每个 agent 分配 3~6 个任务
-   - 使用 `depends_on` 声明任务依赖关系
-3. 创建 `_workspace/` 目录保存中间产出物
+1. Form the team based on the Phase 1 analysis:
+   - `TeamCreate` — members reference the role definitions in the `agents/` directory.
+2. `TaskCreate` to register subtasks:
+   - Assign 3-6 tasks per agent.
+   - Use `depends_on` to declare task dependencies.
+3. Create the `_workspace/` directory to store intermediate artifacts.
 
-### Phase 3: 执行
+### Phase 3: Execution
 
-1. 成员通过共享任务列表认领并执行任务
-2. 成员间通过 `SendMessage` 实时协调：
-   - 共享发现、讨论冲突、补充遗漏
-   - 不必经过 Leader 即可直接通信
-3. Leader 通过 `TaskGet` 监控进度，必要时介入协调
-4. 产出物保存到 `_workspace/{阶段}_{agent}_{产出物}.{ext}`
+1. Members claim and execute tasks via the shared task list.
+2. Members coordinate in real time via `SendMessage`:
+   - Share findings, discuss conflicts, fill in gaps.
+   - They can communicate directly without going through the Leader.
+3. The Leader monitors progress via `TaskGet` and steps in to coordinate when necessary.
+4. Artifacts are saved to `_workspace/{phase}_{agent}_{artifact}.{ext}`.
 
-### Phase 4: 整合与验证
+### Phase 4: Integration and verification
 
-1. 通过 `Read` 收集所有成员的产出物
-2. 检查一致性：
-   - 接口定义两侧是否匹配
-   - 产出物间是否有矛盾
-3. 生成最终产出物
-4. 简要质量验证
+1. Collect every member's artifacts via `Read`.
+2. Check consistency:
+   - Do both sides of an interface definition match?
+   - Are there contradictions between artifacts?
+3. Produce the final artifact.
+4. Brief quality verification.
 
-### Phase 5: 清理与报告
+### Phase 5: Cleanup and reporting
 
-1. 向用户报告完成情况和关键产出物位置
-2. `TeamDelete` 清理团队
-3. 保留 `_workspace/` 供审计和后续任务使用
+1. Report completion status and the location of key artifacts to the user.
+2. `TeamDelete` to clean up the team.
+3. Keep `_workspace/` for auditing and follow-up tasks.
 
-## 常用团队模板
+## Common team templates
 
-### 功能开发
+### Feature development
 ```
 architect(1) → developer(1-2) → reviewer(1) + tester(1)
-模式：流水线 + 生成-验证
+Pattern: pipeline + generate-verify
 ```
 
-### 技术调研
+### Technical research
 ```
 researcher(2-4)
-模式：扇出/扇入
+Pattern: fan-out/fan-in
 ```
 
-### 代码审查
+### Code review
 ```
-reviewer(2-3)（分别关注安全/性能/架构）
-模式：扇出/扇入
+reviewer(2-3) (each focusing on security / performance / architecture)
+Pattern: fan-out/fan-in
 ```
 
-### 大规模重构
+### Large-scale refactoring
 ```
 project-lead(1) + developer(2-3)
-模式：监督者
+Pattern: supervisor
 ```
 
-### 全栈开发
+### Full-stack development
 ```
 architect(1) + developer-frontend(1) + developer-backend(1) + tester(1)
-模式：层级委派
+Pattern: hierarchical delegation
 ```
 
-### 文档完善
+### Documentation improvement
 ```
 tech-writer(1) + researcher(1)
-模式：扇出/扇入
+Pattern: fan-out/fan-in
 ```
 
-## 错误处理
+## Error handling
 
-| 情况 | 策略 |
-|------|------|
-| 单个成员失败 | Leader 通过 SendMessage 确认 → 重启或创建替代 |
-| 过半成员失败 | 通知用户确认是否继续 |
-| 超时 | 使用已收集的部分结果 |
-| 成员间数据冲突 | 标注来源并列，不删除任何一方 |
-| 任务状态延迟 | Leader 通过 TaskGet 确认后手动 TaskUpdate |
+| Situation | Strategy |
+|-----------|----------|
+| A single member fails | Leader confirms via SendMessage → restart or create a replacement |
+| More than half the members fail | Notify the user to confirm whether to continue |
+| Timeout | Use the partial results already collected |
+| Data conflict between members | Annotate the sources side by side; don't delete either one |
+| Delayed task status | Leader confirms via TaskGet, then manually TaskUpdate |
 
-## 数据传递规范
+## Data-passing conventions
 
-| 策略 | 方式 | 适用场景 |
-|------|------|---------|
-| 消息 | SendMessage | 实时协调、轻量反馈 |
-| 任务 | TaskCreate/TaskUpdate | 进度跟踪、依赖管理 |
-| 文件 | Write/Read `_workspace/` | 结构化产出物（>100行） |
-| 返回值 | Agent 工具返回 | 子 Agent 结果收集 |
+| Strategy | Method | Applicable scenario |
+|----------|--------|---------------------|
+| Message | SendMessage | Real-time coordination, lightweight feedback |
+| Task | TaskCreate/TaskUpdate | Progress tracking, dependency management |
+| File | Write/Read `_workspace/` | Structured artifacts (>100 lines) |
+| Return value | Agent tool return | Sub-agent result collection |
 
-## 冲突处理协议
+## Conflict-resolution protocol
 
-1. 数据冲突 → 不删除任何一方，标注来源后并列
-2. 设计分歧 → architect 有最终决定权，但需说明理由
-3. 实现与设计不一致 → developer 向 architect 报告，由 architect 判断
+1. Data conflict → don't delete either side; annotate the sources and list them side by side.
+2. Design disagreement → the architect has the final say, but must explain the reasoning.
+3. Implementation diverges from design → the developer reports to the architect, who makes the call.
 
-## 测试场景
+## Test scenarios
 
-### 正常流程：功能开发
-1. 用户请求"为项目添加用户认证功能"
-2. Phase 1 分析 → 中等规模功能开发 → 流水线模式
-3. Phase 2 组建 architect + developer + reviewer 团队
-4. Phase 3 按序执行：设计 → 实现 → 审查
-5. Phase 4 整合
-6. 产出：`_workspace/` 下的设计文档 + 代码 + 审查报告
+### Normal flow: feature development
+1. User requests "add user authentication to the project".
+2. Phase 1 analysis → medium-sized feature development → pipeline pattern.
+3. Phase 2 forms an architect + developer + reviewer team.
+4. Phase 3 executes in order: design → implement → review.
+5. Phase 4 integration.
+6. Output: design doc + code + review report under `_workspace/`.
 
-### 错误流程：开发阻塞
-1. Phase 3 中 developer 遇到接口定义不明确
-2. developer 向 architect SendMessage 请求澄清
-3. architect 补充接口定义并 SendMessage 回复
-4. developer 继续实现
+### Error flow: development blocked
+1. During Phase 3 the developer hits an unclear interface definition.
+2. The developer SendMessages the architect to request clarification.
+3. The architect fills in the interface definition and SendMessages a reply.
+4. The developer continues the implementation.

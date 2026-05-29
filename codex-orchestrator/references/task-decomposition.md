@@ -1,125 +1,125 @@
-# 任务拆解方法论
+# Task decomposition methodology
 
-面对复杂开发任务时，按以下 5 步系统性地拆解为可执行的子任务。
+When facing a complex development task, use the following 5 steps to systematically break it into executable subtasks.
 
-## Step 1: 任务性质识别
+## Step 1: Identify the nature of the task
 
-判断任务属于哪种类型，不同类型有不同的默认处理方式：
+Determine which type the task belongs to; different types have different default handling:
 
-| 任务类型 | 典型信号 | 默认模式 |
-|---------|---------|---------|
-| 新功能开发 | "添加"、"实现"、"支持" | 流水线 + 生成-验证 |
-| 技术调研 | "调研"、"比较"、"评估"、"选型" | 扇出/扇入 |
-| 代码审查 | "审查"、"review"、"检查" | 扇出/扇入 |
-| Bug 修复 | "修复"、"fix"、"解决" | 生成-验证 |
-| 重构/迁移 | "重构"、"迁移"、"升级"、"替换" | 监督者 |
-| 文档 | "文档"、"README"、"API doc" | 扇出/扇入 |
-| 全栈项目 | "搭建"、"全栈"、"从零开始" | 层级委派 |
+| Task type | Typical signals | Default pattern |
+|-----------|-----------------|-----------------|
+| New feature development | "add", "implement", "support" | Pipeline + generate-verify |
+| Technical research | "research", "compare", "evaluate", "selection" | Fan-out/fan-in |
+| Code review | "review", "check" | Fan-out/fan-in |
+| Bug fix | "fix", "resolve" | Generate-verify |
+| Refactor / migration | "refactor", "migrate", "upgrade", "replace" | Supervisor |
+| Documentation | "docs", "README", "API doc" | Fan-out/fan-in |
+| Full-stack project | "build", "full-stack", "from scratch" | Hierarchical delegation |
 
-## Step 2: 规模估算
+## Step 2: Size estimation
 
-统计任务中的独立关注点数量：
+Count the number of independent concerns in the task:
 
 ```
-关注点识别方法：
-1. 列出所有需要处理的模块/领域
-2. 识别需要不同专业知识的部分
-3. 找出可以独立验证的子目标
+How to identify concerns:
+1. List all the modules/domains that need to be handled.
+2. Identify the parts that require different expertise.
+3. Find the sub-goals that can be verified independently.
 
-判定：
-- 1-2 个关注点 → 小规模 → 不组队，子 agent 或直接完成
-- 3-5 个关注点 → 中规模 → 2-3 人团队
-- 6+ 个关注点  → 大规模 → 3-5 人团队
+Verdict:
+- 1-2 concerns → small → no team, sub-agent or do it directly
+- 3-5 concerns → medium → 2-3 person team
+- 6+ concerns  → large → 3-5 person team
 ```
 
-**示例**：
-- "添加登录功能" → 3 个关注点（认证逻辑、前端页面、安全） → 中规模
-- "调研 CLI 框架" → 2 个关注点（功能对比、社区评价） → 小规模
-- "全栈电商系统" → 7+ 个关注点 → 大规模
+**Examples**:
+- "Add a login feature" → 3 concerns (auth logic, frontend pages, security) → medium.
+- "Research CLI frameworks" → 2 concerns (feature comparison, community reception) → small.
+- "Full-stack e-commerce system" → 7+ concerns → large.
 
-## Step 3: 模式匹配
+## Step 3: Pattern matching
 
-基于 Step 1-2 的结果，参照 `pattern-selector.md` 选择架构模式。
+Based on the results of Steps 1-2, pick an architecture pattern per `pattern-selector.md`.
 
-**快速决策路径：**
+**Quick decision path:**
 ```
-小规模任务？
-├─ 是 → 不组队，直接子 agent
-└─ 否
-    ├─ 各子任务间有强依赖？ → 流水线
-    ├─ 各子任务可独立并行？ → 扇出/扇入
-    ├─ 需要生成后验证？    → 生成-验证
-    ├─ 工作量动态不确定？   → 监督者
-    └─ 自然多层级结构？    → 层级委派
+Small task?
+├─ Yes → no team, use a sub-agent directly
+└─ No
+    ├─ Strong dependencies between subtasks? → pipeline
+    ├─ Subtasks can run independently in parallel? → fan-out/fan-in
+    ├─ Need to verify after generating?          → generate-verify
+    ├─ Workload dynamic and uncertain?           → supervisor
+    └─ Naturally multi-level structure?          → hierarchical delegation
 ```
 
-## Step 4: 角色选择
+## Step 4: Role selection
 
-参照 `agent-catalog.md` 从角色库中挑选组合。
+Pick a combination from the role library per `agent-catalog.md`.
 
-**选择原则：**
-1. **必要性** — 每个角色必须有不可替代的专业贡献
-2. **最小化** — 能用 3 人完成的不用 5 人
-3. **覆盖性** — 确保任务的所有关键环节都有角色负责
-4. **复用性** — 同一角色可以出现多次（如 2 个 researcher 分别调研不同维度）
+**Selection principles:**
+1. **Necessity** — each role must make an irreplaceable specialized contribution.
+2. **Minimization** — don't use 5 people for what 3 can do.
+3. **Coverage** — ensure every critical part of the task has a role responsible for it.
+4. **Reusability** — the same role can appear multiple times (e.g., 2 researchers each researching a different dimension).
 
-**角色实例化：**
-当同一角色需要多个实例时，通过命名区分：
+**Role instantiation:**
+When the same role needs multiple instances, distinguish them by name:
 - `developer-frontend` / `developer-backend`
 - `reviewer-security` / `reviewer-performance`
 - `researcher-frameworks` / `researcher-community`
 
-## Step 5: 子任务分解
+## Step 5: Subtask decomposition
 
-将整体任务分解为每个 agent 的具体子任务。
+Break the overall task into concrete subtasks for each agent.
 
-**分解原则：**
-1. 每个子任务有明确的**输入**和**输出**
-2. 子任务间的**依赖关系**显式声明（用 `depends_on`）
-3. 可并行的尽量并行
-4. 每个 agent 分配 **3-6 个任务**（过少则角色多余，过多则粒度过细）
-5. 每个子任务应可**独立验证**
+**Decomposition principles:**
+1. Each subtask has a clear **input** and **output**.
+2. **Dependencies** between subtasks are declared explicitly (with `depends_on`).
+3. Parallelize whatever can be parallelized.
+4. Assign **3-6 tasks** per agent (too few makes the role redundant; too many makes the granularity too fine).
+5. Each subtask should be **independently verifiable**.
 
-**子任务模板：**
+**Subtask template:**
 ```
-任务名称：{动词 + 名词}
-分配给：{agent 名称}
-输入：{依赖的前序产出物或原始输入}
-输出：{产出物路径和格式}
-依赖：{前序任务 ID 列表}
-验收标准：{如何判断完成}
+Task name: {verb + noun}
+Assigned to: {agent name}
+Input: {dependent upstream artifacts or raw input}
+Output: {artifact path and format}
+Dependencies: {list of upstream task IDs}
+Acceptance criteria: {how to tell it's done}
 ```
 
-**示例 — 新功能开发（用户认证）：**
+**Example — new feature development (user authentication):**
 
-| # | 任务 | Agent | 依赖 | 产出物 |
-|---|------|-------|------|--------|
-| 1 | 分析认证需求和安全要求 | architect | — | `01_architect_design.md` |
-| 2 | 设计认证接口和数据模型 | architect | 1 | `01_architect_design.md`（更新） |
-| 3 | 实现认证后端逻辑 | developer | 2 | 代码 + `02_developer_changelog.md` |
-| 4 | 实现登录/注册前端页面 | developer | 2 | 代码 + `02_developer_changelog.md` |
-| 5 | 审查安全性和代码质量 | reviewer | 3,4 | `03_reviewer_report.md` |
-| 6 | 编写认证流程测试 | tester | 3,4 | 测试代码 + `04_tester_report.md` |
-| 7 | 根据审查意见修改 | developer | 5 | 代码更新 |
+| # | Task | Agent | Dependencies | Artifacts |
+|---|------|-------|--------------|-----------|
+| 1 | Analyze auth requirements and security requirements | architect | — | `01_architect_design.md` |
+| 2 | Design auth interfaces and data models | architect | 1 | `01_architect_design.md` (updated) |
+| 3 | Implement the auth backend logic | developer | 2 | code + `02_developer_changelog.md` |
+| 4 | Implement the login/registration frontend pages | developer | 2 | code + `02_developer_changelog.md` |
+| 5 | Review security and code quality | reviewer | 3,4 | `03_reviewer_report.md` |
+| 6 | Write auth-flow tests | tester | 3,4 | test code + `04_tester_report.md` |
+| 7 | Revise per review comments | developer | 5 | code update |
 
-## 数据流设计
+## Data-flow design
 
-确定每个阶段间的数据流向和传递方式：
+Determine the data flow direction and passing method between each stage:
 
 ```
 [architect]
     ↓ _workspace/01_architect_design.md
 [developer]
-    ↓ 代码 + _workspace/02_developer_changelog.md
+    ↓ code + _workspace/02_developer_changelog.md
 [reviewer]
     ↓ _workspace/03_reviewer_report.md
 [developer]
-    ↓ 修改代码
+    ↓ revise the code
 [tester]
-    ↓ 测试代码 + _workspace/04_tester_report.md
+    ↓ test code + _workspace/04_tester_report.md
 ```
 
-**数据传递规范：**
-- 所有角色间通过 `_workspace/` 文件传递数据
-- 前序角色的产出物是后续角色的输入
-- 文件命名规范：`{阶段编号}_{角色名}_{产出物名}.{ext}`
+**Data-passing conventions:**
+- All roles pass data through `_workspace/` files.
+- An upstream role's artifact is the downstream role's input.
+- File naming convention: `{phase number}_{role name}_{artifact name}.{ext}`

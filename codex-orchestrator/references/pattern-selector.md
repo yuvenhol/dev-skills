@@ -1,126 +1,126 @@
-# 架构模式选择指南
+# Architecture pattern selection guide
 
-## 6 种架构模式
+## The 6 architecture patterns
 
-### 1. 流水线 (Pipeline)
+### 1. Pipeline
 ```
 [A] → [B] → [C] → [D]
 ```
-- **特征**：阶段间强依赖，前一阶段的产出是后一阶段的输入
-- **适用**：新功能开发（设计→实现→审查→测试）、ETL、CI/CD
-- **优势**：流程清晰，每个阶段有明确的交付物
-- **劣势**：串行执行，前序阻塞会影响全链路
+- **Characteristics**: strong dependency between stages; each stage's output is the next stage's input.
+- **Use for**: new feature development (design→implement→review→test), ETL, CI/CD.
+- **Pros**: clear flow; each stage has a well-defined deliverable.
+- **Cons**: serial execution; an upstream blocker affects the whole chain.
 
-### 2. 扇出/扇入 (Fan-out/Fan-in)
+### 2. Fan-out/Fan-in
 ```
         ┌→ [A] →┐
-[输入] →├→ [B] →├→ [汇总]
+[input] →├→ [B] →├→ [aggregate]
         └→ [C] →┘
 ```
-- **特征**：多个 agent 独立并行处理，最后汇总结果
-- **适用**：技术调研、多维度代码审查、竞品分析
-- **优势**：并行执行，效率高
-- **劣势**：汇总环节需要处理矛盾和重叠
+- **Characteristics**: multiple agents process independently in parallel, then results are aggregated.
+- **Use for**: technical research, multi-dimensional code review, competitive analysis.
+- **Pros**: parallel execution, high efficiency.
+- **Cons**: the aggregation step must handle contradictions and overlaps.
 
-### 3. 专家池 (Expert Pool)
+### 3. Expert Pool
 ```
-[路由器] → 按输入类型 → [专家 A]
-                      → [专家 B]
-                      → [专家 C]
+[router] → by input type → [expert A]
+                          → [expert B]
+                          → [expert C]
 ```
-- **特征**：根据输入特征选择性调用不同专家
-- **适用**：混合类型任务、多语言项目、不同技术栈的模块
-- **优势**：精准匹配专业能力
-- **劣势**：需要准确的路由判断
+- **Characteristics**: selectively invoke different experts based on the input's features.
+- **Use for**: mixed-type tasks, multi-language projects, modules on different tech stacks.
+- **Pros**: precise matching of specialized capabilities.
+- **Cons**: requires accurate routing decisions.
 
-### 4. 生成-验证 (Producer-Reviewer)
+### 4. Producer-Reviewer (generate-verify)
 ```
-[生成者] → 产出物 → [验证者] → PASS/FIX
-                                 ↓ FIX
-                              [生成者] → 修改 → [验证者]（最多 2 轮）
+[producer] → artifact → [reviewer] → PASS/FIX
+                                       ↓ FIX
+                                    [producer] → revise → [reviewer] (at most 2 rounds)
 ```
-- **特征**：一方生成，另一方验证，迭代改进
-- **适用**：代码编写+审查、文档编写+校审、设计+评审
-- **优势**：内建质量保障
-- **劣势**：迭代轮次需要控制（建议最多 2 轮）
+- **Characteristics**: one side produces, the other verifies, iterating to improve.
+- **Use for**: code writing + review, doc writing + proofreading, design + review.
+- **Pros**: built-in quality assurance.
+- **Cons**: the number of iterations must be controlled (recommended: at most 2 rounds).
 
-### 5. 监督者 (Supervisor)
+### 5. Supervisor
 ```
-[监督者]
-  ├→ 分配任务 → [成员 A]
-  ├→ 分配任务 → [成员 B]
-  └→ 动态再分配（基于进度和成员状态）
+[supervisor]
+  ├→ assign task → [member A]
+  ├→ assign task → [member B]
+  └→ dynamic reassignment (based on progress and member status)
 ```
-- **特征**：中央 agent 管理状态并动态分配任务
-- **适用**：大规模重构/迁移、工作量不确定的批处理
-- **优势**：动态负载均衡，适应变化
-- **劣势**：监督者是单点，决策质量依赖其能力
+- **Characteristics**: a central agent manages state and dynamically assigns tasks.
+- **Use for**: large-scale refactoring/migration, batch processing with uncertain workload.
+- **Pros**: dynamic load balancing, adapts to change.
+- **Cons**: the supervisor is a single point; decision quality depends on its capability.
 
-### 6. 层级委派 (Hierarchical Delegation)
+### 6. Hierarchical Delegation
 ```
-[总负责人]
-  ├→ [前端负责人]
-  │    ├→ [UI 开发]
-  │    └→ [状态管理]
-  └→ [后端负责人]
-       ├→ [API 开发]
-       └→ [数据层]
+[overall lead]
+  ├→ [frontend lead]
+  │    ├→ [UI development]
+  │    └→ [state management]
+  └→ [backend lead]
+       ├→ [API development]
+       └→ [data layer]
 ```
-- **特征**：自上而下递归分解和委派
-- **适用**：全栈项目、大型系统、多层级组织
-- **优势**：自然映射复杂系统结构
-- **劣势**：层级过深会增加通信开销
+- **Characteristics**: top-down recursive decomposition and delegation.
+- **Use for**: full-stack projects, large systems, multi-level organizations.
+- **Pros**: maps naturally onto complex system structures.
+- **Cons**: too many levels increases communication overhead.
 
-## 决策矩阵
+## Decision matrix
 
-| 判断维度 | 流水线 | 扇出/扇入 | 专家池 | 生成-验证 | 监督者 | 层级委派 |
-|---------|--------|----------|--------|----------|--------|---------|
-| 阶段间依赖 | 强 | 弱 | 无 | 双向 | 弱 | 树状 |
-| 并行度 | 低 | 高 | 中 | 低 | 中 | 中 |
-| 适合团队规模 | 2-4 | 2-5 | 1+N | 2 | 1+2-3 | 3-7 |
-| 沟通开销 | 低 | 低 | 低 | 中 | 中 | 高 |
-| 质量保障 | 需额外机制 | 汇总时 | 依赖路由 | 内建 | 依赖监督者 | 层层审查 |
+| Dimension | Pipeline | Fan-out/Fan-in | Expert Pool | Generate-Verify | Supervisor | Hierarchical |
+|-----------|----------|----------------|-------------|-----------------|------------|--------------|
+| Inter-stage dependency | Strong | Weak | None | Bidirectional | Weak | Tree-shaped |
+| Parallelism | Low | High | Medium | Low | Medium | Medium |
+| Suitable team size | 2-4 | 2-5 | 1+N | 2 | 1+2-3 | 3-7 |
+| Communication overhead | Low | Low | Low | Medium | Medium | High |
+| Quality assurance | Needs extra mechanism | At aggregation | Depends on routing | Built-in | Depends on supervisor | Layered review |
 
-## Codex 执行动作映射
+## Codex execution-action mapping
 
-| 模式 | 在 Codex 中如何执行 | 不适合真实并行时的 fallback |
-|------|---------------------|------------------------------|
-| 流水线 | 按顺序依次执行角色，阶段产出物写入 `_workspace/` | 当前会话串行扮演各角色 |
-| 扇出/扇入 | 可并行时让不同角色分别产出文件，最后统一汇总 | 依次完成多个独立分支，再统一汇总 |
-| 专家池 | 先做路由判断，再只调用命中的 1-N 个角色 | 当前会话按路由结果逐个执行命中角色 |
-| 生成-验证 | developer / tech-writer 与 reviewer / tester 交替执行，最多 2 轮 | 当前会话严格按“生成 → 验证 → 修正”循环 |
-| 监督者 | project-lead 先写计划，再驱动多个执行角色分批推进 | project-lead 计划不变，由当前会话分批串行推进 |
-| 层级委派 | 先产出总设计，再拆为前后端或模块负责人并行/分批执行 | 保留层次拆分，但执行上改为串行分阶段推进 |
+| Pattern | How to execute in Codex | Fallback when true parallelism isn't suitable |
+|---------|-------------------------|-----------------------------------------------|
+| Pipeline | Execute roles one by one in order; write each stage's artifact to `_workspace/` | The current session plays each role serially |
+| Fan-out/Fan-in | When parallel is possible, have different roles each produce a file, then aggregate them together | Complete several independent branches one after another, then aggregate together |
+| Expert Pool | Make the routing decision first, then invoke only the 1-N roles that match | The current session executes the matched roles one by one per the routing result |
+| Generate-Verify | developer / tech-writer alternates with reviewer / tester, at most 2 rounds | The current session strictly follows the "generate → verify → fix" loop |
+| Supervisor | project-lead writes the plan first, then drives several executing roles forward in batches | The project-lead plan stays the same; the current session pushes forward serially in batches |
+| Hierarchical Delegation | Produce the overall design first, then split into frontend/backend or module leads executing in parallel/batches | Keep the hierarchical split, but switch execution to serial, staged progress |
 
-## 执行模式选择
+## Execution-mode selection
 
 ```
-需要几个角色？
-├─ 1 个 → 直接单角色执行
-└─ 2+ 个
-    ├─ 各角色间有顺序依赖？
-    │   ├─ 是 → 顺序执行（流水线）
-    │   └─ 否 → 并行执行（扇出/扇入）
-    └─ 需要迭代改进？
-        └─ 是 → 迭代执行（生成-验证，最多 2 轮）
+How many roles are needed?
+├─ 1 → execute a single role directly
+└─ 2+
+    ├─ Are there ordering dependencies between roles?
+    │   ├─ Yes → sequential execution (pipeline)
+    │   └─ No → parallel execution (fan-out/fan-in)
+    └─ Need iterative improvement?
+        └─ Yes → iterative execution (generate-verify, at most 2 rounds)
 ```
 
-### 数据传递方式
-所有角色间通过 `_workspace/` 文件传递数据：
-- 前序角色写入产出物文件
-- 后续角色读取前序产出物作为输入
-- 文件命名规范：`{阶段编号}_{角色名}_{产出物名}.{ext}`
+### Data-passing method
+All roles pass data through `_workspace/` files:
+- An upstream role writes the artifact file.
+- A downstream role reads the upstream artifact as input.
+- File naming convention: `{phase number}_{role name}_{artifact name}.{ext}`
 
-### 选择规则补充
-- 只要任务仍然可以由单角色高质量完成，就不要为了“形式上的编排”强行拆角色
-- “并行执行”是优化项，不是前提；无法安全并行时，优先保证角色边界和产出物清晰
-- 选择模式时先看依赖关系和验证需求，再看是否值得并行
+### Additional selection rules
+- As long as the task can still be completed at high quality by a single role, don't force a role split just for "orchestration for its own sake".
+- "Parallel execution" is an optimization, not a prerequisite; when you can't parallelize safely, prioritize keeping role boundaries and artifacts clear.
+- When selecting a pattern, look at dependencies and verification needs first, then consider whether parallelism is worth it.
 
-## 常见复合模式
+## Common composite patterns
 
-| 场景 | 组合 | 说明 |
-|------|------|------|
-| 调研+开发 | 扇出/扇入 → 流水线 | 先并行调研，再串行开发 |
-| 开发+审查 | 流水线 + 生成-验证 | 开发后进入审查迭代 |
-| 全栈+QA | 层级委派 + 扇出/扇入 | 前后端并行开发，QA 并行审查 |
-| 重构+测试 | 监督者 + 生成-验证 | 动态分配重构任务，每批验证 |
+| Scenario | Combination | Notes |
+|----------|-------------|-------|
+| Research + development | Fan-out/Fan-in → Pipeline | Research in parallel first, then develop serially |
+| Development + review | Pipeline + Generate-Verify | After development, enter the review iteration |
+| Full-stack + QA | Hierarchical Delegation + Fan-out/Fan-in | Frontend and backend developed in parallel, QA reviews in parallel |
+| Refactor + test | Supervisor + Generate-Verify | Dynamically assign refactoring tasks, verify each batch |

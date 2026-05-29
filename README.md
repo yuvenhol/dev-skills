@@ -1,25 +1,25 @@
 # dev-skills
 
-给 AI 编码助手准备的「随身手册」。沉淀那些每次都得重复一遍的规范、流程和角色约束，让 Codex、Claude Code 们按需翻阅。
+A "field manual" for AI coding assistants. It captures the standards, workflows, and role constraints you'd otherwise repeat every time, so Codex, Claude Code, and friends can consult them on demand.
 
-## 当前在册
+## Currently registered
 
-| Skill | 给谁用 | 解决什么问题 |
-|-------|--------|--------------|
-| `codex-orchestrator` | Codex | 复杂任务编排。靠 `_workspace/` 文件驱动，把活儿派给 architect / developer / reviewer / tester，串行或并行收工。 |
-| `cc-orchestrator` | Claude Code | 多 Agent 协作。用 TeamCreate / SendMessage / TaskCreate 组队，分工干活。 |
-| `python-dev-standards` | Python 后端 | FastAPI、Pydantic v2、SQLAlchemy async、配置、测试、类型、异常、异步 I/O、统一错误响应、Repository / Service 分层——一份齐活。 |
+| Skill | For whom | What it solves |
+|-------|----------|----------------|
+| `codex-orchestrator` | Codex | Complex task orchestration. Driven by `_workspace/` files, it dispatches work to architect / developer / reviewer / tester and wraps up serially or in parallel. |
+| `cc-orchestrator` | Claude Code | Multi-agent collaboration. Forms a team with TeamCreate / SendMessage / TaskCreate and divides the work. |
+| `python-dev-standards` | Python backend | FastAPI, Pydantic v2, SQLAlchemy async, configuration, testing, typing, exceptions, async I/O, unified error responses, Repository / Service layering — all in one place. |
 
-## 怎么用
+## How to use
 
-1. 命中某个领域 → 先读对应 skill 的 `SKILL.md`。
-2. 需要展开细节 / 模板 / 长例子 → 再翻 `references/`。
-3. 编排类 skill 自带 `agents/` 存角色；普通规范类不必硬塞。
+1. Hit a given domain → read that skill's `SKILL.md` first.
+2. Need the details / templates / longer examples → then flip through `references/`.
+3. Orchestration skills ship their own `agents/` for roles; plain standards skills don't need to force them in.
 
-## 维护约定
+## Maintenance conventions
 
-- `SKILL.md` 只写触发边界、执行流程、reference 索引——保持轻。
-- `references/` 承载完整规范、长示例、模板、决策细节——保持厚。
-- 不给单个 skill 加 README / CHANGELOG / 安装说明，除非它真的服务于执行。
-- 改规范优先动 reference；只有入口、触发或资源索引变了，才动 `SKILL.md`。
-- 增删 skill 记得回来更新上面的表格。
+- `SKILL.md` only holds trigger boundaries, execution flow, and the reference index — keep it light.
+- `references/` carries the full standards, long examples, templates, and decision details — keep it thick.
+- Don't add a README / CHANGELOG / install guide to an individual skill unless it genuinely serves execution.
+- When changing a standard, edit the reference first; only touch `SKILL.md` when the entry point, triggers, or resource index change.
+- When adding or removing a skill, remember to come back and update the table above.
