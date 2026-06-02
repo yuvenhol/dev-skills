@@ -134,8 +134,15 @@ Default to the **standard directory structure**. Use the separate frontend/backe
 #### domain Layer (Business Domains)
 - `models.py`: Domain models (Pydantic Model or dataclass, chosen by data boundary)
 - `service.py`: Business logic
-- `repository.py`: Data access layer
+- `repository.py`: Relational data access layer (see §13; only for SQLAlchemy-style DBs)
 - `schemas.py`: API request/response Pydantic Models
+- Keep submodules flat by default (`domain/<area>/...`); only nest into sub-areas when a single domain genuinely grows several cohesive concerns.
+
+#### infrastructure Layer (External Systems)
+- Wrappers for external systems: Elasticsearch / vector stores, search & embedding APIs, message queues, remote HTTP services, object storage, etc.
+- **External-store wrappers are named `*_store.py`** (e.g. `reader_store.py`, `pin_store.py`) and expose async methods over the external system. This is distinct from the relational **Repository** pattern in §13: a Repository assumes a SQLAlchemy session + transaction semantics and lives next to the domain; a Store wraps a schema-less / remote backend (ES, HTTP) and lives in `infrastructure/`.
+- Clients (e.g. an ES client, an embedding client) are thin transport wrappers; stores compose them and map raw payloads to domain models.
+- **Must not** contain business rules or cross-store orchestration — that belongs in the Service layer.
 
 ### Data Carrier Selection
 
@@ -252,7 +259,10 @@ python-version = "3.14"
 
 [tool.ruff]
 line-length = 100
-include = ["src/**/*.py", "tests/**/*.py"]
+# ruff covers src/ only. tests/ and scripts/ routinely hold un-wrappable string
+# constants (GraphQL queries, CLI-example docstrings, fixture blobs) that would
+# otherwise force E501 noqa noise; ty still type-checks them.
+include = ["src/**/*.py"]
 exclude = [".git", ".venv", "__pycache__", "build", "dist"]
 preview = true
 
@@ -282,10 +292,10 @@ Unified command entry point; avoid team members memorizing different parameters.
 .PHONY: format lint typecheck test check
 
 format:
-	uv run ruff format src tests
+	uv run ruff format src
 
 lint:
-	uv run ruff check --fix src tests
+	uv run ruff check --fix src
 
 typecheck:
 	uv run ty check
@@ -494,6 +504,47 @@ uv run pytest tests/unit/
 - Use Pydantic v2 for validation
 - Use `Annotated` + `Depends` for dependency injection
 - Prefer `async def`
+
+### Application Assembly & Lifecycle
+
+The application entry (`api/main.py`) is a thin composition root: a `create_app()`
+factory builds the `FastAPI` instance, registers routers and exception handlers, and
+stores only configuration on `app.state`. **Resources with a connection lifetime
+(HTTP clients, ES clients, MQ connections) are created in `lifespan`, not eagerly in
+`create_app()`** — this keeps construction side-effect-free and guarantees deterministic
+async teardown.
+
+```python
+@asynccontextmanager
+async def lifespan(app: FastAPI) -> AsyncIterator[None]:
+    settings: Settings = app.state.settings
+    http_client = build_http_client(verify=settings.es_verify_certs)
+    state = AppState(settings, http_client)
+    await state.setup()                 # one async assembly entry point
+    app.state.app_state = state
+    try:
+        yield
+    finally:
+        await http_client.aclose()      # single owned-resource teardown
+
+
+def create_app() -> FastAPI:
+    setup_logging()                     # §14, before anything logs
+    settings = get_settings()
+    app = FastAPI(title="...", version="...", lifespan=lifespan)
+    _register_exception_handlers(app)   # §12
+    app.include_router(health.router)
+    # ... include other routers ...
+    app.state.settings = settings       # config only; resources live in lifespan
+    return app
+
+
+app = create_app()
+```
+
+- Own resources from a single root (e.g. one `httpx.AsyncClient` shared by all stores)
+  and close that root in `lifespan`; do not scatter per-resource reflective close logic.
+- A single `main.py` is the entry; do not add an extra `app.py` forwarding module.
 
 ### Route Naming Conventions
 
@@ -1299,9 +1350,14 @@ class AppError(Exception):
     def __init__(
         self,
         message: str | None = None,
+        *,
+        code: str | None = None,
+        status_code: int | None = None,
         detail: dict[str, Any] | None = None,
     ) -> None:
         self.message = message or self.message
+        self.code = code or self.code
+        self.status_code = status_code or self.status_code
         self.detail = detail
         super().__init__(self.message)
 
@@ -1310,6 +1366,11 @@ class UserNotFoundError(AppError):
     status_code = 404
     message = "User not found"
 ```
+
+> The class attributes (`code` / `status_code` / `message`) are the default for each
+> exception subclass; the keyword-only `code` / `status_code` parameters allow an
+> ad-hoc instance to override them without declaring a new subclass — useful when an
+> infrastructure error needs to surface as a specific HTTP status at a single call site.
 
 ### Global Exception Handlers
 
@@ -1386,6 +1447,8 @@ raise HTTPException(status_code=404, detail="user not found")
 
 
 ## 13. Database and Repository
+
+> **Scope**: this section is the **relational-database** pattern (SQLAlchemy async + sessions + transactions). For schema-less or remote backends (Elasticsearch, vector stores, HTTP services), use the `infrastructure/*_store.py` **Store** pattern in §1 instead — Stores have no session/transaction semantics and live in `infrastructure/`.
 
 ### Core Principles
 
