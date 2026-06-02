@@ -250,7 +250,10 @@ build-backend = "hatchling.build"
 requires = ["hatchling"]
 
 [tool.ty.src]
-include = ["src", "tests"]
+# Like ruff, the typecheck gate is scoped to src/. tests/ and scripts/ trip ty
+# false positives (pydantic populate_by_name, to_thread kwarg forwarding,
+# dict[str, object] iteration); run `ty check tests scripts` ad hoc when needed.
+include = ["src"]
 exclude = [".git", ".venv", "__pycache__", "build", "dist"]
 
 [tool.ty.environment]
