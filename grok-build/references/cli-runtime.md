@@ -45,6 +45,12 @@ Read-only review / critique / research:
 grok -p <prompt> --agent explore --always-approve --sandbox read-only --cwd <ws> --output-format json --no-auto-update
 ```
 
+If a runtime socket deny path is a symlink (Docker Desktop on macOS:
+`/var/run/docker.sock` → `~/.docker/run/docker.sock`), Grok 1.0.13 refuses
+`--sandbox read-only` instead of masking the canonical target. The bridge
+detects that, omits `--sandbox`, keeps `--agent explore`, and adds
+`--disallowed-tools search_replace`. `check` reports `sandbox.readOnly`.
+
 Critique adds `--json-schema` from `schemas/review-output.schema.json`.
 
 Write-capable delegate (`run --write`):
