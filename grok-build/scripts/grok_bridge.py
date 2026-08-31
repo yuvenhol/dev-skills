@@ -30,6 +30,17 @@ DEFAULT_CONTINUE_PROMPT = "Continue the previous task. Apply the next safest ste
 VALID_EFFORTS = {"none", "minimal", "low", "medium", "high", "xhigh", "max"}
 MAX_REVIEW_CHARS = 180_000
 CHECK_TIMEOUT_SEC = 30
+RUNTIME_SOCKET_CANDIDATES = (
+    Path("/var/run/docker.sock"),
+    Path("/run/docker.sock"),
+    Path("/var/run/podman.sock"),
+    Path("/run/podman.sock"),
+)
+SANDBOX_APPLY_MARKERS = (
+    "could not apply the '",
+    "runtime-socket deny resolution failed",
+    "endpoint is a symlink",
+)
 
 
 class BridgeError(Exception):
@@ -218,6 +229,71 @@ def require_grok() -> str:
     return str(status["binary"])
 
 
+def docker_host_socket() -> Path | None:
+    host = os.environ.get("DOCKER_HOST", "").strip()
+    if host.startswith("unix://"):
+        return Path(host[len("unix://") :])
+    return None
+
+
+def inspect_runtime_socket(path: Path) -> dict[str, Any]:
+    info: dict[str, Any] = {"path": str(path)}
+    try:
+        lexists = path.is_symlink() or path.exists()
+    except OSError as exc:
+        info.update(status="unreadable", error=str(exc))
+        return info
+    if not lexists:
+        info["status"] = "missing"
+        return info
+    if path.is_symlink():
+        try:
+            target = os.readlink(path)
+        except OSError as exc:
+            info.update(status="endpoint-symlink", error=str(exc))
+            return info
+        resolved = os.path.realpath(path)
+        info.update(
+            status="endpoint-symlink",
+            target=target,
+            resolved=resolved,
+            targetExists=os.path.exists(resolved),
+        )
+        return info
+    info["status"] = "socket" if path.exists() else "missing"
+    return info
+
+
+def runtime_socket_reports() -> list[dict[str, Any]]:
+    seen: set[str] = set()
+    reports = []
+    extra = docker_host_socket()
+    for path in (*RUNTIME_SOCKET_CANDIDATES, *([extra] if extra else [])):
+        key = str(path)
+        if key in seen:
+            continue
+        seen.add(key)
+        reports.append(inspect_runtime_socket(path))
+    return reports
+
+
+def read_only_sandbox_block_reason(reports: list[dict[str, Any]] | None = None) -> str | None:
+    """Grok 1.0.13 fails closed if a runtime-socket deny path is a symlink.
+
+    Docker Desktop on macOS always makes /var/run/docker.sock a symlink to
+    ~/.docker/run/docker.sock (often dangling). The CLI refuses --sandbox
+    read-only instead of denying the canonical target.
+    """
+    for report in reports if reports is not None else runtime_socket_reports():
+        if report.get("status") == "endpoint-symlink":
+            target = report.get("target") or report.get("resolved") or "unknown"
+            return (
+                f"{report['path']} is a symlink to {target}; "
+                "Grok cannot apply the read-only sandbox profile"
+            )
+    return None
+
+
 def grok_auth(cwd: Path) -> dict[str, Any]:
     try:
         binary = grok_binary()
@@ -244,10 +320,24 @@ def handle_check(args: argparse.Namespace) -> int:
         next_steps.append("Install the Grok Build CLI and ensure `grok` is on PATH (or set GROK_BINARY).")
     elif not auth["loggedIn"]:
         next_steps.append("Authenticate with `grok login` (or set XAI_API_KEY), then verify with `grok models`.")
+    sockets = runtime_socket_reports()
+    sandbox_reason = read_only_sandbox_block_reason(sockets)
+    sandbox = {
+        "readOnly": "blocked" if sandbox_reason else "ok",
+        "reason": sandbox_reason,
+        "sockets": sockets,
+        "fallback": "omit --sandbox; keep --agent explore for review/critique",
+    }
+    if sandbox_reason:
+        next_steps.append(
+            "read-only sandbox is blocked by a runtime-socket symlink; "
+            "review/critique will skip --sandbox and stay read-only via the explore agent."
+        )
     report = {
         "ready": bool(grok["available"] and auth["loggedIn"]),
         "grok": grok,
         "auth": auth,
+        "sandbox": sandbox,
         "nextSteps": next_steps,
     }
     if args.json:
@@ -256,6 +346,8 @@ def handle_check(args: argparse.Namespace) -> int:
     lines = [
         f"Grok CLI: {'ok' if grok['available'] else 'missing'} ({grok.get('binary') or 'not found'})",
         f"Auth: {'ok' if auth['loggedIn'] else 'not logged in'}",
+        f"Sandbox read-only: {sandbox['readOnly']}"
+        + (f" ({sandbox_reason})" if sandbox_reason else ""),
         f"Ready: {'yes' if report['ready'] else 'no'}",
     ]
     if grok.get("version"):
@@ -359,6 +451,11 @@ def render_prompt(name: str, target: dict[str, str], context: dict[str, str], fo
     )
 
 
+def sandbox_apply_failed(stderr: str) -> bool:
+    text = stderr.lower()
+    return any(marker.lower() in text for marker in SANDBOX_APPLY_MARKERS)
+
+
 def build_grok_argv(
     *,
     prompt: str,
@@ -369,12 +466,15 @@ def build_grok_argv(
     resume: str | None,
     structured: bool,
     agent: str | None,
+    sandbox: str | None,
 ) -> list[str]:
     argv = [grok_binary(), "-p", prompt, "--cwd", str(cwd), "--always-approve", "--no-auto-update"]
     if agent:
         argv.extend(["--agent", agent])
-    if not write:
-        argv.extend(["--sandbox", "read-only"])
+    if sandbox:
+        argv.extend(["--sandbox", sandbox])
+    elif not write:
+        argv.extend(["--disallowed-tools", "search_replace"])
     if model:
         argv.extend(["-m", model])
     if effort:
@@ -416,18 +516,27 @@ def append_log(path: Path, line: str) -> None:
 
 def execute_grok(job: dict[str, Any], cwd: Path) -> dict[str, Any]:
     request = job["request"]
+    write = bool(request.get("write"))
+    sandbox: str | None = None if write else "read-only"
+    skip_reason = None if write else read_only_sandbox_block_reason()
+    if skip_reason:
+        sandbox = None
+        job["sandboxSkipReason"] = skip_reason
     argv = build_grok_argv(
         prompt=request["prompt"],
         cwd=cwd,
         model=request.get("model"),
         effort=request.get("effort"),
-        write=bool(request.get("write")),
+        write=write,
         resume=request.get("resumeSessionId"),
         structured=bool(request.get("structured")),
         agent=request.get("agent"),
+        sandbox=sandbox,
     )
     log_file = Path(job["logFile"])
-    append_log(log_file, f"start {' '.join(argv[:4])} ...")
+    append_log(log_file, f"start sandbox={sandbox or 'off'} {' '.join(argv[:4])} ...")
+    if skip_reason:
+        append_log(log_file, f"skip read-only sandbox: {skip_reason}")
     env = os.environ.copy()
     env["GROK_DISABLE_AUTOUPDATER"] = "1"
     proc = subprocess.Popen(
@@ -441,9 +550,38 @@ def execute_grok(job: dict[str, Any], cwd: Path) -> dict[str, Any]:
     )
     job["status"] = "running"
     job["pid"] = proc.pid
+    job["sandbox"] = sandbox
     job["startedAt"] = job.get("startedAt") or now_iso()
     save_job(cwd, job)
     stdout, stderr = proc.communicate()
+    if proc.returncode != 0 and sandbox and sandbox_apply_failed(stderr or ""):
+        append_log(log_file, f"sandbox apply failed; retrying without sandbox: {first_line(stderr, 'unknown')}")
+        sandbox = None
+        job["sandbox"] = None
+        job["sandboxSkipReason"] = first_line(stderr, "sandbox apply failed")
+        argv = build_grok_argv(
+            prompt=request["prompt"],
+            cwd=cwd,
+            model=request.get("model"),
+            effort=request.get("effort"),
+            write=write,
+            resume=request.get("resumeSessionId"),
+            structured=bool(request.get("structured")),
+            agent=request.get("agent"),
+            sandbox=None,
+        )
+        proc = subprocess.Popen(
+            argv,
+            cwd=str(cwd),
+            env=env,
+            stdout=subprocess.PIPE,
+            stderr=subprocess.PIPE,
+            text=True,
+            start_new_session=True,
+        )
+        job["pid"] = proc.pid
+        save_job(cwd, job)
+        stdout, stderr = proc.communicate()
     parsed = parse_grok_json(stdout)
     text = parsed.get("text") or stdout
     session_id = parsed.get("sessionId") or parsed.get("threadId")
@@ -456,7 +594,10 @@ def execute_grok(job: dict[str, Any], cwd: Path) -> dict[str, Any]:
     if proc.returncode != 0 and not job.get("errorMessage"):
         job["errorMessage"] = first_line(stderr or text, f"grok exited {proc.returncode}")
     save_job(cwd, job)
-    append_log(log_file, f"status={job['status']} exit={proc.returncode} session={session_id or '-'}")
+    append_log(
+        log_file,
+        f"status={job['status']} exit={proc.returncode} session={session_id or '-'} sandbox={sandbox or 'off'}",
+    )
     return job
 
 
@@ -473,11 +614,13 @@ def render_job(job: dict[str, Any]) -> str:
     return "\n".join(part.rstrip() for part in parts if part).rstrip() + "\n"
 
 
-def output_job(job: dict[str, Any], as_json: bool) -> int:
+def output_job(job: dict[str, Any], as_json: bool, *, exit_from_status: bool = True) -> int:
     if as_json:
         print(json.dumps(job, indent=2, ensure_ascii=False))
     else:
         sys.stdout.write(render_job(job))
+    if not exit_from_status:
+        return 0
     return 0 if job.get("status") == "completed" else 1
 
 
@@ -679,7 +822,7 @@ def handle_show(args: argparse.Namespace) -> int:
     )
     if job is None:
         raise BridgeError("No finished job to show.")
-    return output_job(refresh_job(cwd, job), args.json)
+    return output_job(refresh_job(cwd, job), args.json, exit_from_status=False)
 
 
 def terminate_pid(pid: int) -> dict[str, Any]:
