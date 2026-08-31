@@ -8,6 +8,7 @@ A "field manual" for AI coding assistants. It captures the standards, workflows,
 |-------|----------|----------------|
 | `codex-orchestrator` | Codex | Complex task orchestration. Driven by `_workspace/` files, it dispatches work to architect / developer / reviewer / tester and wraps up serially or in parallel. |
 | `cc-orchestrator` | Claude Code | Multi-agent collaboration. Forms a team with TeamCreate / SendMessage / TaskCreate and divides the work. |
+| `grok-build` | Claude Code / Cursor / Codex | Call the local Grok Build CLI for check, review, critique, delegate, status, show, and stop — same surface as openai/codex-plugin-cc, without a Claude marketplace plugin. |
 | `python-dev-standards` | Python backend | FastAPI, Pydantic v2, SQLAlchemy async, configuration, testing, typing, exceptions, async I/O, unified error responses, Repository / Service layering — all in one place. |
 
 ## How to use
@@ -15,6 +16,7 @@ A "field manual" for AI coding assistants. It captures the standards, workflows,
 1. Hit a given domain → read that skill's `SKILL.md` first.
 2. Need the details / templates / longer examples → then flip through `references/`.
 3. Orchestration skills ship their own `agents/` for roles; plain standards skills don't need to force them in.
+4. `grok-build` is invoked through `grok-build/scripts/grok_bridge.py` (check / review / critique / run / status / show / stop). Point Claude Code, Cursor, or Codex at this repo's `grok-build/` skill directory.
 
 ## Maintenance conventions
 
